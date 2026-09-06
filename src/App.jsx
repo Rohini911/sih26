@@ -10,11 +10,56 @@ import LifeSavingRulesSection from './components/LifeSavingRulesSection';
 import Footer from './components/Footer';
 import LoginModal from './components/LoginModal';
 import InteractiveAiDemoModal from './components/InteractiveAiDemoModal';
+import OrganizationPlatform from './components/platform/OrganizationPlatform';
+
+const PROTECTED_ROUTES = [
+  '/dashboard',
+  '/ai-analysis',
+  '/bulk-upload',
+  '/reports',
+  '/week-signals',
+  '/strong-report',
+  '/sif-precursors',
+  '/critical-alerts',
+  '/corrective-actions',
+  '/analytics',
+  '/risk-heatmap',
+  '/life-saving-rules',
+  '/settings'
+];
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading, logout } = useAuth();
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
+
+  // Synchronize browser history and popstate navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
+
+  // Redirect unauthenticated access to any protected platform route back to authentication page
+  useEffect(() => {
+    if (!loading && !isAuthenticated && PROTECTED_ROUTES.includes(currentPath)) {
+      window.history.replaceState({}, '', '/');
+      setCurrentPath('/');
+      setLoginModalOpen(true);
+    }
+  }, [loading, isAuthenticated, currentPath]);
+
+  const handleOpenLogin = () => {
+    setLoginModalOpen(true);
+  };
 
   // Dynamic continuous Oil Rope & Playful Person Hanging Scroller
   const [scrollerY, setScrollerY] = useState(60);
@@ -126,15 +171,59 @@ function AppContent() {
     }
   };
 
-  // Always render the main website (no post-login redirect to platform)
+  // Protect all 13 platform routes: require authentication
+  if (PROTECTED_ROUTES.includes(currentPath)) {
+    // Show spinner while resolving localStorage session
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-[#070D18] flex flex-col items-center justify-center text-slate-300">
+          <div className="w-10 h-10 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin" />
+          <p className="mt-4 text-xs font-mono text-amber-300 tracking-wider">Verifying Security Session...</p>
+        </div>
+      );
+    }
 
-  // IF NOT AUTHENTICATED: RENDER COMPLETE PUBLIC LANDING PAGE (UNTOUCHED)
+    // Authenticated: Render SIF Sentinel Enterprise Multi-Page Platform
+    if (isAuthenticated) {
+      return (
+        <OrganizationPlatform 
+          currentPath={currentPath}
+          onNavigate={navigateTo}
+          onExitPlatform={() => {
+            logout();
+            window.history.pushState({}, '', '/');
+            setCurrentPath('/');
+            setLoginModalOpen(false);
+          }}
+        />
+      );
+    }
+
+    // Unauthenticated access attempt: Redirect to authentication modal
+    return (
+      <div className="min-h-screen bg-[#070709] text-slate-100">
+        <LoginModal
+          isOpen={true}
+          onClose={() => {
+            window.history.pushState({}, '', '/');
+            setCurrentPath('/');
+            setLoginModalOpen(false);
+          }}
+          onLoginSuccess={() => {
+            navigateTo(currentPath || '/dashboard');
+          }}
+        />
+      </div>
+    );
+  }
+
+  // IF NOT ON DASHBOARD: RENDER COMPLETE PUBLIC LANDING PAGE (UNTOUCHED)
   return (
     <div className="min-h-screen bg-[#070709] text-slate-100 transition-colors duration-300 font-sans selection:bg-amber-500 selection:text-slate-950">
       
       {/* Top Navigation Bar with Direct Smooth Scrolling */}
       <Navbar 
-        onOpenLogin={() => setLoginModalOpen(true)}
+        onOpenLogin={handleOpenLogin}
         onOpenDemo={() => setDemoModalOpen(true)}
       />
 
@@ -142,7 +231,7 @@ function AppContent() {
         {/* 1. Landing / Hero Section */}
         <HeroSection 
           onExplore={() => setDemoModalOpen(true)}
-          onLogin={() => setLoginModalOpen(true)}
+          onLogin={handleOpenLogin}
         />
 
         {/* Continuous Story Container (Page 2 to Page 7 with Central Golden Rope & Scroller) */}
@@ -257,6 +346,9 @@ function AppContent() {
       <LoginModal
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
+        onLoginSuccess={() => {
+          navigateTo('/dashboard');
+        }}
       />
 
       {/* 10. Interactive AI SIF Demo Simulator Modal */}

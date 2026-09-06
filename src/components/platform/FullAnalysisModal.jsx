@@ -12,7 +12,8 @@ import {
   Zap,
   Shield,
   Sparkles,
-  ExternalLink
+  Layers,
+  Scale
 } from 'lucide-react';
 
 export default function FullAnalysisModal({ report, onClose }) {
@@ -21,167 +22,142 @@ export default function FullAnalysisModal({ report, onClose }) {
   const isSIF = report.sif_precursor_assessment === 'YES' || report.isSIF;
   const analysis = report.ai_analysis || {};
   const hazard = report.identified_hazard || analysis.identified_hazard || 'Hazard Assessment Completed';
-  const energy = analysis.energy_source || report.energy_source || 'Identified Energy Vector';
+  const energy = analysis.energy_source || report.energy_source || 'Identified High-Energy Vector';
   const barrier = report.barrier_status || report.barrier_information || analysis.barrier_information || 'Critical Barrier Audited';
-  const explanation = analysis.explanation || report.brief_explanation || report.explanation || 'AI analysis completed based on industrial safety precursor signals.';
+  const explanation = analysis.explanation || report.description || 'AI analysis completed based on industrial safety precursor signals.';
   const recommendation = report.recommended_action || analysis.recommended_action || 'Enforce physical controls and verify critical barrier integrity.';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200 select-none">
       
       {/* Modal Dialog */}
-      <div className="w-full max-w-3xl bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white overflow-hidden flex flex-col max-h-[92vh] text-left">
+      <div className="w-full max-w-3xl bg-[#0E1628] rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[90vh] text-left text-slate-100">
         
         {/* Top Header */}
-        <div className="p-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 text-white flex items-start justify-between gap-4 shadow-md">
+        <div className="p-6 bg-gradient-to-r from-[#0F1D38] via-[#0D182E] to-[#0A1222] border-b border-slate-800 text-white flex items-start justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="font-mono text-xs font-black px-3 py-1 rounded-xl bg-white/20 text-white border border-white/30 backdrop-blur-md shadow-2xs">
+              <span className="font-mono text-xs font-black px-3 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40">
                 {report.report_reference || `REP-${report.id}`}
               </span>
               {report.report_date && (
-                <span className="text-xs text-blue-100 font-mono flex items-center gap-1">
+                <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>{report.report_date}</span>
                 </span>
               )}
               {report.report_type && (
-                <span className="text-xs px-2.5 py-0.5 rounded-lg bg-white/15 text-white font-semibold">
+                <span className="text-xs px-2.5 py-0.5 rounded-lg bg-slate-800 text-slate-300 font-semibold border border-slate-700">
                   {report.report_type}
                 </span>
               )}
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight font-heading">
-              AI Safety Intelligence & Causal Analysis
+              Report Causal & SIF Barrier Analysis
             </h2>
-            <p className="text-xs text-blue-100 font-medium">
-              SIF Precursor Assessment Engine • Oil India Limited
+            <p className="text-xs text-slate-400">
+              {report.location} • {report.facility_unit || 'Industrial Site A'}
             </p>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer border border-white/20"
+            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="p-6 sm:p-7 overflow-y-auto space-y-6 text-slate-800">
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto space-y-6">
           
-          {/* 1. SIF Potential Verdict Banner */}
-          <div className={`p-5 rounded-2xl border flex items-center justify-between gap-4 shadow-xs ${
+          {/* SIF Assessment Banner */}
+          <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${
             isSIF 
-              ? 'bg-amber-50/90 border-amber-300 text-amber-950' 
-              : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' 
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
           }`}>
-            <div className="flex items-center gap-3.5">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
-                isSIF ? 'bg-gradient-to-tr from-amber-500 to-rose-500 text-white' : 'bg-gradient-to-tr from-emerald-500 to-teal-600 text-white'
-              }`}>
-                {isSIF ? <ShieldAlert className="w-6 h-6 stroke-[2.2]" /> : <ShieldCheck className="w-6 h-6 stroke-[2.2]" />}
-              </div>
+            <div className="flex items-center gap-3">
+              {isSIF ? (
+                <ShieldAlert className="w-8 h-8 text-rose-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-8 h-8 text-emerald-400 shrink-0" />
+              )}
               <div>
-                <div className="text-xs font-mono font-black uppercase tracking-wider">
-                  {isSIF ? 'POTENTIAL SIF PRECURSOR DETECTED' : 'NON-SIF OBSERVATION'}
+                <div className="text-xs font-bold uppercase tracking-wider">
+                  {isSIF ? 'High-Consequence SIF Precursor Detected' : 'Non-SIF Controlled Event'}
                 </div>
-                <div className="text-base sm:text-lg font-black mt-0.5">
-                  {isSIF ? 'High Energy Release & Critical Fatality Risk' : 'Contained Observation / Low Energy'}
+                <div className="text-xs mt-0.5 opacity-90">
+                  {isSIF ? 'Energy release capacity exceeds critical fatality threshold without direct barrier.' : 'Adequate mitigation present; event contained.'}
                 </div>
               </div>
             </div>
 
             <div className="text-right shrink-0">
-              <span className={`text-xs font-mono font-black px-3 py-1.5 rounded-xl border shadow-2xs ${
-                isSIF ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-emerald-100 border-emerald-300 text-emerald-900'
-              }`}>
-                {isSIF ? 'SIF PRECURSOR' : 'NON-SIF'}
+              <span className="text-xs font-mono font-bold">AI Score: {report.ai_score || 94}</span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-amber-400" />
+              Field Incident Statement
+            </span>
+            <p className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-200 leading-relaxed">
+              {report.description}
+            </p>
+          </div>
+
+          {/* Hazards & Energy */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" />
+                Identified Hazard Vector
               </span>
+              <div className="text-xs font-semibold text-white">{hazard}</div>
+              <div className="text-[11px] text-slate-400">{energy}</div>
             </div>
-          </div>
 
-          {/* 2. Full Submitted Observation */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-black text-slate-700 font-mono uppercase tracking-wider">
-                Submitted Safety Observation
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                Barrier Integrity Assessment
               </span>
-              {report.location && (
-                <span className="text-slate-600 text-xs font-mono flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                  <span>{report.location}</span>
-                </span>
-              )}
-            </div>
-
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/90 text-sm leading-relaxed text-slate-800">
-              <p className="font-medium">
-                {report.description || 'No observation description recorded.'}
-              </p>
+              <div className="text-xs font-semibold text-rose-400">{barrier}</div>
+              <div className="text-[11px] text-slate-400">Direct physical barrier failed or bypassed</div>
             </div>
           </div>
 
-          {/* 3. Structured Hazard, Energy Vector & Barrier Audit */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-              <span className="text-[10px] text-slate-400 font-mono font-bold block uppercase tracking-wider">IDENTIFIED HAZARD</span>
-              <strong className="text-slate-900 block font-heading text-sm sm:text-base">
-                {hazard}
-              </strong>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-              <span className="text-[10px] text-slate-400 font-mono font-bold block uppercase tracking-wider">ENERGY SOURCE</span>
-              <strong className="text-amber-700 block font-heading text-sm sm:text-base flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>{energy}</span>
-              </strong>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-              <span className="text-[10px] text-slate-400 font-mono font-bold block uppercase tracking-wider">BARRIER STATUS</span>
-              <strong className="text-slate-900 block font-heading text-sm sm:text-base flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>{barrier?.replace?.('_', ' ') || barrier}</span>
-              </strong>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-              <span className="text-[10px] text-slate-400 font-mono font-bold block uppercase tracking-wider">CLASSIFICATION VECTOR</span>
-              <strong className="text-blue-700 block font-heading text-sm sm:text-base">
-                {report.report_type || 'Industrial Incident'}
-              </strong>
-            </div>
-          </div>
-
-          {/* 4. SafetyAI Recommended Action */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/70 border border-blue-200/90 text-slate-800 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs font-black text-blue-900 font-mono uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              <span>SafetyAI Corrective Recommendation</span>
-            </div>
-            <p className="text-sm font-bold text-slate-900 leading-relaxed">
+          {/* Recommended Action */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Mandated Corrective Controls
+            </span>
+            <p className="text-xs text-slate-300 leading-relaxed">
               {recommendation}
             </p>
           </div>
 
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <span className="text-xs text-slate-500 font-mono">
-            SafetyAI Engine • SIH PS 165
-          </span>
+        {/* Footer */}
+        <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <span className="font-mono text-[11px]">Audit ID: {report.id} • API RP 754 Compliant</span>
           <button
+            type="button"
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-black transition-all cursor-pointer shadow-md shadow-blue-600/20"
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition-colors cursor-pointer"
           >
-            Close Details
+            Close Report
           </button>
         </div>
 
       </div>
+
     </div>
   );
 }

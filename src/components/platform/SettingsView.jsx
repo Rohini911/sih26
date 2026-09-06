@@ -11,11 +11,17 @@ import {
   CheckCircle2, 
   Check, 
   AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Cpu,
+  Sparkles,
+  Save,
+  RefreshCw,
+  Lock,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export default function SettingsView() {
+export default function SettingsView({ onNavigate }) {
   const { user } = useAuth();
 
   // Settings State
@@ -23,6 +29,12 @@ export default function SettingsView() {
   const [alertRecurrenceThreshold, setAlertRecurrenceThreshold] = useState(3);
   const [siteDensityThreshold, setSiteDensityThreshold] = useState(25);
   
+  // Organization State
+  const [orgName, setOrgName] = useState('Industrial Site A');
+  const [parentCompany, setParentCompany] = useState('PetroSafe Industries / Oil India HSE');
+  const [facilityId, setFacilityId] = useState('SITE-IND-A-702');
+  const [complianceStandard, setComplianceStandard] = useState('API RP 754 / IOGP 456');
+
   // API Integration Key State
   const [apiKey, setApiKey] = useState('oil_live_hsse_9f4820a8bc27419e');
   const [hsseApiStatus, setHsseApiStatus] = useState('CONNECTED');
@@ -34,11 +46,11 @@ export default function SettingsView() {
 
   // User & Role Table Data
   const [users, setUsers] = useState([
-    { id: 1, name: 'Dr. Barun Borah', email: 'admin1@gmail.com', role: 'Corporate HSE Admin', site: 'Duliajan HQ', status: 'Active' },
-    { id: 2, name: 'Rajiv Sharma', email: 'rajiv.sharma@oilindia.in', role: 'HSE Reviewer', site: 'Moran Deep Rig 9', status: 'Active' },
-    { id: 3, name: 'Sunil Gogoi', email: 'sunil.gogoi@oilindia.in', role: 'Site Manager', site: 'Bay 2 Heavy Fab', status: 'Active' },
-    { id: 4, name: 'Mousumi Phukan', email: 'mousumi.p@oilindia.in', role: 'HSE Reviewer', site: 'Wellhead Pad-4', status: 'Active' },
-    { id: 5, name: 'Tapan Hazarika', email: 'tapan.h@oilindia.in', role: 'Viewer / Auditor', site: 'Digboi Refinery', status: 'Active' }
+    { id: 1, name: 'Dr. Barun Borah', email: 'admin@petrosafe.com', role: 'Corporate HSE Admin', site: 'Industrial Site A', status: 'Active' },
+    { id: 2, name: 'Rajiv Sharma', email: 'rajiv.sharma@petrosafe.com', role: 'HSE Reviewer', site: 'Plant 03 Heavy Crane', status: 'Active' },
+    { id: 3, name: 'Sunil Gogoi', email: 'sunil.gogoi@petrosafe.com', role: 'Site Manager', site: 'Plant 01 Process Bay', status: 'Active' },
+    { id: 4, name: 'Mousumi Phukan', email: 'mousumi.p@petrosafe.com', role: 'HSE Reviewer', site: 'Plant 02 Height Rig', status: 'Active' },
+    { id: 5, name: 'Tapan Hazarika', email: 'tapan.h@petrosafe.com', role: 'Viewer / Auditor', site: 'Plant 04 Tank Farm', status: 'Active' }
   ]);
 
   const handleSaveThresholds = (e) => {
@@ -57,49 +69,135 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto select-none">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-100 animate-in fade-in duration-200">
       
-      {/* 1. Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
-            <Settings className="w-5 h-5" />
-          </span>
-          <h2 className="text-xl sm:text-2xl font-black text-white font-heading tracking-tight">
-            Settings & Corporate Administration
-          </h2>
+      {/* 1. Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Settings className="w-5 h-5" />
+            </span>
+            <h1 className="text-xl sm:text-2xl font-black text-white font-heading tracking-tight">
+              Platform Settings & Enterprise Control
+            </h1>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Configure SIF trigger thresholds, organization metadata, real-time HSSE telemetry feeds, and role-based permissions.
+          </p>
         </div>
-        <p className="text-xs text-slate-400 mt-1">
-          Configure SIF confidence thresholds, user roles, HSSE data ingestion pipelines, and organizational parameters
-        </p>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              setSavedSettingsSuccess(true);
+              setTimeout(() => setSavedSettingsSuccess(false), 3500);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer border border-amber-300/40"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Changes</span>
+          </button>
+        </div>
       </div>
 
       {savedSettingsSuccess && (
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>Configuration thresholds successfully saved to production NLP pipeline!</span>
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <span>Configuration thresholds & organization parameters successfully applied to the live SIF Sentinel neural model.</span>
         </div>
       )}
 
-      {/* 2. SIF Model Threshold Configuration Form */}
-      <div className="p-6 rounded-2xl bg-[#090D16] border border-slate-800/90 shadow-xl space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white font-heading">
-              SIF Confidence & Alert Trigger Thresholds
-            </h3>
+      {/* 2. Organization Profile Card */}
+      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 shadow-xl space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white font-heading">
+                Organization & Facility Profile
+              </h2>
+              <p className="text-[11px] text-slate-400">Primary operational identity and regulatory scope</p>
+            </div>
           </div>
-          <span className="text-xs text-amber-400 font-mono">Dynamic NLP Guardrails</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Verified Enterprise License
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Facility Name</label>
+            <input 
+              type="text" 
+              value={orgName} 
+              onChange={(e) => setOrgName(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-amber-500/60"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Parent Enterprise</label>
+            <input 
+              type="text" 
+              value={parentCompany} 
+              onChange={(e) => setParentCompany(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-amber-500/60"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Facility Asset ID</label>
+            <input 
+              type="text" 
+              value={facilityId} 
+              onChange={(e) => setFacilityId(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white text-xs font-mono font-semibold focus:outline-none focus:border-amber-500/60"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Safety Governance Standard</label>
+            <input 
+              type="text" 
+              value={complianceStandard} 
+              onChange={(e) => setComplianceStandard(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white text-xs font-semibold focus:outline-none focus:border-amber-500/60"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. SIF Model Threshold Configuration Form */}
+      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 shadow-xl space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white font-heading">
+                SIF AI Confidence & Alert Trigger Thresholds
+              </h2>
+              <p className="text-[11px] text-slate-400">Dynamic parameters dictating automated high-risk escalations</p>
+            </div>
+          </div>
+          <span className="text-xs text-amber-400 font-mono font-bold flex items-center gap-1">
+            <Cpu className="w-3.5 h-3.5" />
+            Active Neural Core
+          </span>
         </div>
 
         <form onSubmit={handleSaveThresholds} className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* Slider 1: SIF Confidence Cutoff */}
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
             <div className="flex justify-between items-center text-xs">
               <span className="font-bold text-slate-200">SIF Confidence Cutoff</span>
-              <span className="font-mono text-amber-400 font-bold">{sifConfidenceCutoff}%</span>
+              <span className="font-mono text-amber-400 font-extrabold text-sm">{sifConfidenceCutoff}%</span>
             </div>
             <input
               type="range"
@@ -107,18 +205,18 @@ export default function SettingsView() {
               max="95"
               value={sifConfidenceCutoff}
               onChange={(e) => setSifConfidenceCutoff(e.target.value)}
-              className="w-full accent-amber-500 cursor-pointer"
+              className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
             />
-            <p className="text-[11px] text-slate-400">
-              Observations with NLP probability &ge; {sifConfidenceCutoff}% automatically flag as SIF Potential.
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Observations with NLP probability &ge; <strong className="text-white">{sifConfidenceCutoff}%</strong> automatically trigger SIF precursor flags.
             </p>
           </div>
 
           {/* Slider 2: Precursor Recurrence Frequency */}
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
             <div className="flex justify-between items-center text-xs">
               <span className="font-bold text-slate-200">Precursor Repeat Trigger</span>
-              <span className="font-mono text-amber-400 font-bold">&ge; {alertRecurrenceThreshold} times</span>
+              <span className="font-mono text-amber-400 font-extrabold text-sm">&ge; {alertRecurrenceThreshold} times</span>
             </div>
             <input
               type="range"
@@ -126,18 +224,18 @@ export default function SettingsView() {
               max="10"
               value={alertRecurrenceThreshold}
               onChange={(e) => setAlertRecurrenceThreshold(e.target.value)}
-              className="w-full accent-amber-500 cursor-pointer"
+              className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
             />
-            <p className="text-[11px] text-slate-400">
-              Triggers Critical Precursor Alert if same barrier failure repeats within a 14-day rolling window.
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Triggers Critical Precursor Alert if the same barrier failure repeats within a rolling 14-day window.
             </p>
           </div>
 
           {/* Slider 3: Site SIF Density Warning */}
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
             <div className="flex justify-between items-center text-xs">
               <span className="font-bold text-slate-200">Site Critical Density</span>
-              <span className="font-mono text-amber-400 font-bold">&ge; {siteDensityThreshold}%</span>
+              <span className="font-mono text-amber-400 font-extrabold text-sm">&ge; {siteDensityThreshold}%</span>
             </div>
             <input
               type="range"
@@ -145,17 +243,17 @@ export default function SettingsView() {
               max="40"
               value={siteDensityThreshold}
               onChange={(e) => setSiteDensityThreshold(e.target.value)}
-              className="w-full accent-amber-500 cursor-pointer"
+              className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
             />
-            <p className="text-[11px] text-slate-400">
-              Flags facility as Critical Risk tier when SIF precursors exceed {siteDensityThreshold}% of total reports.
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Flags facility as Critical Risk tier when SIF precursors exceed <strong className="text-white">{siteDensityThreshold}%</strong> of total reports.
             </p>
           </div>
 
           <div className="md:col-span-3 flex justify-end">
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer font-heading"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-black text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer font-heading border border-amber-300/40"
             >
               Apply & Save Thresholds
             </button>
@@ -163,19 +261,21 @@ export default function SettingsView() {
         </form>
       </div>
 
-      {/* 3. Data Sources & Bulk CSV Ingestion */}
+      {/* 4. Data Ingestion & API Telemetry */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* HSSE Platform API Connection */}
-        <div className="p-6 rounded-2xl bg-[#090D16] border border-slate-800/90 shadow-xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white font-heading">
-                HSSE Platform Live API Connection
-              </h3>
+        <div className="p-6 rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 shadow-xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                <Database className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-bold text-white font-heading">
+                HSSE Platform Live API Stream
+              </h2>
             </div>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono font-bold border border-emerald-500/30">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {hsseApiStatus}
             </span>
@@ -183,27 +283,27 @@ export default function SettingsView() {
 
           <div className="space-y-3 text-xs">
             <div>
-              <label className="text-slate-400 block mb-1">Production HSSE Webhook Endpoint</label>
+              <label className="text-slate-400 block mb-1 font-semibold text-[11px]">Production HSSE Webhook Endpoint</label>
               <input
                 type="text"
                 readOnly
                 value="https://api.oilindia.in/hsse/v2/observations/stream"
-                className="w-full p-2.5 bg-[#070A12] text-slate-300 font-mono rounded-xl border border-slate-800 focus:outline-none"
+                className="w-full p-2.5 bg-slate-900 text-slate-300 font-mono rounded-xl border border-slate-800 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-slate-400 block mb-1">HSSE Ingestion Secret Key</label>
+              <label className="text-slate-400 block mb-1 font-semibold text-[11px]">HSSE Ingestion Secret Key</label>
               <div className="flex items-center gap-2">
                 <input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  className="flex-1 p-2.5 bg-[#070A12] text-slate-300 font-mono rounded-xl border border-slate-800 focus:outline-none"
+                  className="flex-1 p-2.5 bg-slate-900 text-slate-300 font-mono rounded-xl border border-slate-800 focus:outline-none"
                 />
                 <button
                   onClick={() => alert('API Key verified with Oil India HSSE Gateway')}
-                  className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold border border-slate-700 cursor-pointer"
+                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold border border-slate-700 cursor-pointer text-xs"
                 >
                   Verify Key
                 </button>
@@ -211,19 +311,21 @@ export default function SettingsView() {
             </div>
 
             <p className="text-[11px] text-slate-400 pt-1">
-              Provides real-time event streaming directly from field handhelds and web portals into SafetyAI.
+              Provides real-time event streaming directly from field handhelds and web portals into SIF Sentinel.
             </p>
           </div>
         </div>
 
         {/* Bulk Historical CSV Upload */}
-        <div className="p-6 rounded-2xl bg-[#090D16] border border-slate-800/90 shadow-xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white font-heading">
+        <div className="p-6 rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 shadow-xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <FileSpreadsheet className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-bold text-white font-heading">
                 Historical Safety Reports CSV Ingestion
-              </h3>
+              </h2>
             </div>
             <span className="text-xs text-slate-400 font-mono">Bulk Upload</span>
           </div>
@@ -254,14 +356,16 @@ export default function SettingsView() {
 
       </div>
 
-      {/* 4. User & Role Management Table */}
-      <div className="rounded-2xl bg-[#090D16] border border-slate-800/90 shadow-xl overflow-hidden">
+      {/* 5. User & Role Management Table */}
+      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 shadow-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-amber-400" />
-            <h3 className="text-xs font-bold text-white font-heading">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <Users className="w-4 h-4" />
+            </div>
+            <h2 className="text-xs font-bold text-white font-heading">
               Authorized HSSE Users & Access Roles
-            </h3>
+            </h2>
           </div>
           <span className="text-xs text-slate-400 font-mono">5 Team Members</span>
         </div>
@@ -269,7 +373,7 @@ export default function SettingsView() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#0D1424] border-b border-slate-800 text-slate-400 font-mono text-[11px] uppercase tracking-wider">
+              <tr className="bg-slate-900/70 border-b border-slate-800 text-slate-400 font-mono text-[11px] uppercase tracking-wider">
                 <th className="p-3.5">Name</th>
                 <th className="p-3.5">Email</th>
                 <th className="p-3.5">Access Role</th>
@@ -279,7 +383,7 @@ export default function SettingsView() {
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-200">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-850 transition-colors">
+                <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
                   <td className="p-3.5 font-bold text-white">
                     {u.name}
                   </td>
@@ -295,7 +399,7 @@ export default function SettingsView() {
                     {u.site}
                   </td>
                   <td className="p-3.5">
-                    <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                    <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       {u.status}
                     </span>

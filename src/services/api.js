@@ -11,16 +11,61 @@ function getAuthHeaders() {
 export const api = {
   // Auth
   login: async (orgId, email, password) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, email, password })
-    });
-    if (!res.ok) {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          org_id: orgId?.trim() || '', 
+          email: email?.trim() || '', 
+          password: password?.trim() || '' 
+        })
+      });
+      if (res.ok) {
+        return await res.json();
+      }
       const err = await res.json().catch(() => ({ detail: 'Authentication failed' }));
-      throw new Error(err.detail || 'Invalid login credentials');
+      throw new Error(err.detail || 'Invalid Organization ID, Email, or Password.');
+    } catch (err) {
+      // If server returned an application/HTTP error, propagate it
+      if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError') && !err.message.includes('network')) {
+        throw err;
+      }
+
+      // Offline fallback for demo accounts if backend is unreachable
+      const DEMO_ACCOUNTS = [
+        { orgId: 'id001', email: 'admin1@gmail.com', pass: 'Admin1@123', name: 'Oil India Limited – Operational Safety Unit', officer: 'HSE Lead Officer 01' },
+        { orgId: 'id002', email: 'admin2@gmail.com', pass: 'Admin2@123', name: 'Offshore Rig Operations & Drilling Division', officer: 'HSE Lead Officer 02' },
+        { orgId: 'id003', email: 'admin3@gmail.com', pass: 'Admin3@123', name: 'Refinery & Petrochemical Processing Center', officer: 'HSE Lead Officer 03' },
+        { orgId: 'id004', email: 'admin4@gmail.com', pass: 'Admin4@123', name: 'Exploration & Production Field Command', officer: 'HSE Lead Officer 04' },
+        { orgId: 'id005', email: 'admin5@gmail.com', pass: 'Admin5@123', name: 'Cross-Country Gas Transmission & Integrity', officer: 'HSE Lead Officer 05' },
+      ];
+
+      const cleanOrg = orgId?.trim().toLowerCase() || '';
+      const cleanEmail = email?.trim().toLowerCase() || '';
+      const cleanPass = password?.trim() || '';
+
+      const match = DEMO_ACCOUNTS.find(acc => 
+        (acc.orgId === cleanOrg || acc.email === cleanEmail) && acc.pass === cleanPass
+      );
+
+      if (match) {
+        return {
+          access_token: 'demo-token-' + Date.now(),
+          token_type: 'bearer',
+          user: {
+            id: 1,
+            organization_id: match.orgId,
+            email: match.email,
+            full_name: match.officer,
+            role: 'CHIEF_HSE_AUDITOR',
+            organization_name: match.name
+          }
+        };
+      }
+
+      throw new Error('Invalid Organization ID, Email, or Password.');
     }
-    return res.json();
   },
 
   getProfile: async () => {
