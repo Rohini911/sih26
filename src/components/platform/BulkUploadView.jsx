@@ -10,10 +10,13 @@ import {
   Check, 
   ArrowRight,
   RefreshCw,
-  FileText
+  FileText,
+  FileCheck,
+  Zap,
+  Clock
 } from 'lucide-react';
 
-export default function BulkUploadView({ onSelectReport, onOpenAllReports }) {
+export default function BulkUploadView({ onNavigate }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -58,240 +61,239 @@ export default function BulkUploadView({ onSelectReport, onOpenAllReports }) {
       id: 104,
       ref: 'OIL-BATCH-04',
       date: '2026-09-05',
-      site: 'Gas Sweetening Plant',
+      site: 'Central Tank Farm Bund B',
       type: 'NEAR_MISS',
-      desc: 'Contractor scaffold plank shifted 4 inches under worker foot at 6m elevation due to loose tie-wire.',
+      desc: 'Nitrogen purge hose disconnected while header was pressurized to 6 bar. Hose whipped 2 meters.',
       isSIF: true,
-      conf: 93.6,
-      hazard: 'Fall from Elevation (>1.8m)'
-    },
-    {
-      id: 105,
-      ref: 'OIL-BATCH-05',
-      date: '2026-09-04',
-      site: 'Central Warehouse Yard',
-      type: 'UNSAFE_ACT',
-      desc: 'Forklift operator driving with empty pallet raised 1.5m off ground during transport across yard.',
-      isSIF: false,
-      conf: 87.0,
-      hazard: 'Vehicle Operation Procedure Deviation'
+      conf: 97.4,
+      hazard: 'High Pressure Pneumatic Whipping Hazard'
     }
   ];
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
       setUploadComplete(false);
       setProgress(0);
     }
   };
 
-  const handleSimulateBatchAnalysis = () => {
-    if (!selectedFile) {
-      // Pick default sample file if none selected
-      setSelectedFile({ name: 'OIL_Historical_Safety_Observations_Q3.csv', size: 245000 });
-    }
-
+  const handleSimulateUpload = () => {
+    if (!selectedFile) return;
     setIsProcessing(true);
-    setProgress(10);
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsProcessing(false);
-          setUploadComplete(true);
-          return 100;
-        }
-        return prev + 18;
-      });
-    }, 300);
+    setProgress(15);
+    
+    setTimeout(() => setProgress(45), 400);
+    setTimeout(() => setProgress(75), 800);
+    setTimeout(() => {
+      setProgress(100);
+      setIsProcessing(false);
+      setUploadComplete(true);
+    }, 1200);
   };
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6 select-none">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-100 animate-in fade-in duration-200">
       
       {/* Header */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-            <UploadCloud className="w-5 h-5" />
-          </span>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-heading">
-            Bulk Historical Reports CSV Ingestion
-          </h2>
-        </div>
-        <p className="text-xs text-slate-500">
-          Upload bulk Unsafe Act, Unsafe Condition, or Near-Miss CSV records to run batch NLP SIF-precursor classification.
-        </p>
-      </div>
-
-      {/* Drag & Drop Upload Card */}
-      <div className="p-8 rounded-2xl bg-white border-2 border-dashed border-slate-300 hover:border-blue-500 transition-colors text-center space-y-4 shadow-xs relative">
-        <input 
-          type="file" 
-          accept=".csv" 
-          onChange={handleFileChange} 
-          className="absolute inset-0 opacity-0 cursor-pointer"
-        />
-
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
-          <FileSpreadsheet className="w-7 h-7" />
-        </div>
-
-        <div className="space-y-1">
-          <h3 className="text-sm font-bold text-slate-900">
-            {selectedFile ? selectedFile.name : 'Drag and drop your historical CSV file here'}
-          </h3>
-          <p className="text-xs text-slate-500">
-            {selectedFile 
-              ? `${(selectedFile.size / 1024).toFixed(1)} KB • Ready for batch NLP evaluation` 
-              : 'or click to browse your computer (standard HSSE fields supported)'}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <UploadCloud className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold font-heading text-white tracking-tight">
+              Bulk Safety Ingestion Portal
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Batch ingest incident registers, observation spreadsheets, and contractor safety logs for autonomous SIF classification
           </p>
         </div>
 
-        <div className="pt-2 flex justify-center gap-3">
-          <button
-            type="button"
-            onClick={handleSimulateBatchAnalysis}
-            disabled={isProcessing}
-            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-2"
-          >
-            {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-            <span>{isProcessing ? 'Processing Batch...' : 'Start Batch AI Analysis'}</span>
-          </button>
-        </div>
+        <button
+          onClick={() => onNavigate && onNavigate('/reports')}
+          className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>View Ingested Database</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Progress Bar */}
-      {isProcessing && (
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2 animate-in fade-in">
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-bold text-slate-800">Processing Observations with SafetyAI Pipeline...</span>
-            <span className="font-mono font-bold text-blue-600">{progress}%</span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-blue-600 h-full rounded-full transition-all duration-300" 
-              style={{ width: `${progress}%` }} 
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Batch Processing Results Summary */}
-      {uploadComplete && (
-        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {/* Upload Zone & Guide Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Drag & Drop Area (8 cols) */}
+        <div className="lg:col-span-8 rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 flex flex-col justify-between shadow-xl space-y-6">
           
-          {/* Summary Stat Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <span className="text-xs text-slate-500 block">Total Ingested</span>
-              <strong className="text-2xl font-black text-slate-900 font-mono">150</strong>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white border border-amber-300 shadow-xs bg-amber-50/40">
-              <span className="text-xs text-amber-800 font-bold block">SIF Precursors Detected</span>
-              <strong className="text-2xl font-black text-amber-600 font-mono">36 (24.0%)</strong>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white border border-blue-200 shadow-xs bg-blue-50/40">
-              <span className="text-xs text-blue-800 font-bold block">Non-SIF Observations</span>
-              <strong className="text-2xl font-black text-blue-600 font-mono">114 (76.0%)</strong>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-              <span className="text-xs text-slate-500 block">Execution Time</span>
-              <strong className="text-2xl font-black text-emerald-600 font-mono">1.8s</strong>
+          <div className="border-2 border-dashed border-slate-700/80 hover:border-amber-500/50 rounded-2xl p-8 text-center transition-colors relative group">
+            <input 
+              type="file" 
+              accept=".csv,.xlsx,.xls,.pdf,.json" 
+              onChange={handleFileChange} 
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            
+            <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <UploadCloud className="w-8 h-8" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Drag & drop your safety spreadsheet or document here</h4>
+                <p className="text-xs text-slate-400 mt-1">Supports CSV, XLSX, XLS, PDF, and JSON safety register files (up to 50MB)</p>
+              </div>
+              <span className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-amber-300 shadow-sm">
+                Browse Files from Device
+              </span>
             </div>
           </div>
 
-          {/* Table Preview of Ingested Batch */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 font-heading">
-                Batch Analysis Sample Preview (Click row to show full dossier)
-              </h3>
+          {/* Selected File Status */}
+          {selectedFile && (
+            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileSpreadsheet className="w-6 h-6 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white truncate">{selectedFile.name}</div>
+                  <div className="text-[10px] text-slate-400">{(selectedFile.size / 1024).toFixed(1)} KB • Ready for extraction</div>
+                </div>
+              </div>
+
+              {!uploadComplete && !isProcessing && (
+                <button
+                  type="button"
+                  onClick={handleSimulateUpload}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 fill-slate-950" />
+                  <span>Start Processing</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Progress State */}
+          {isProcessing && (
+            <div className="space-y-2 p-4 rounded-xl bg-slate-900/80 border border-slate-800">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-semibold flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                  Neural Energy Vector Extraction in Progress...
+                </span>
+                <span className="font-mono font-bold text-amber-400">{progress}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 transition-all duration-300 rounded-full"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Success State */}
+          {uploadComplete && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5 text-emerald-400 font-bold">
+                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <span>Batch Ingestion Completed: 4 Safety Records Classified by AI</span>
+              </div>
               <button
-                onClick={onOpenAllReports}
-                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                onClick={() => onNavigate && onNavigate('/reports')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold hover:bg-emerald-500/30 cursor-pointer"
               >
-                <span>View All In Ledger</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                Inspect Records →
               </button>
             </div>
+          )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-mono text-[11px] uppercase tracking-wider">
-                    <th className="p-3">Reference</th>
-                    <th className="p-3">Category</th>
-                    <th className="p-3 w-80">Free-Text Observation</th>
-                    <th className="p-3">AI SIF Verdict</th>
-                    <th className="p-3">Confidence</th>
-                    <th className="p-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800">
-                  {sampleBatchResults.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => onSelectReport({
-                        id: item.id,
-                        report_reference: item.ref,
-                        report_date: item.date,
-                        location: item.site,
-                        report_type: item.type,
-                        description: item.desc,
-                        sif_precursor_assessment: item.isSIF ? 'YES' : 'NO',
-                        identified_hazard: item.hazard
-                      })}
-                      className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                    >
-                      <td className="p-3 font-mono font-bold text-blue-600 group-hover:underline">
-                        {item.ref}
-                      </td>
-                      <td className="p-3">
-                        <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono font-semibold">
-                          {item.type}
-                        </span>
-                      </td>
-                      <td className="p-3 max-w-sm">
-                        <p className="line-clamp-2 text-slate-600 leading-relaxed">
-                          {item.desc}
-                        </p>
-                      </td>
-                      <td className="p-3">
-                        {item.isSIF ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[10px] border border-amber-300">
-                            <ShieldAlert className="w-3 h-3 text-amber-600" />
-                            SIF POTENTIAL
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold text-[10px] border border-slate-200">
-                            NON-SIF
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 font-mono font-bold text-slate-700">
-                        {item.conf}%
-                      </td>
-                      <td className="p-3 text-right">
-                        <button className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-[11px] transition-all cursor-pointer">
-                          Inspect →
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        </div>
+
+        {/* Right Column: Ingestion Protocol Info (4 cols) */}
+        <div className="lg:col-span-4 rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 flex flex-col justify-between shadow-xl space-y-4">
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Autonomous Ingestion Protocol</span>
+            </h3>
+            
+            <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
+              <p className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                1. <strong className="text-amber-400">Data Normalization:</strong> Dates, locations, and descriptions are automatically sanitized and mapped into API RP 754 schema.
+              </p>
+              <p className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                2. <strong className="text-cyan-400">SIF Vector Classifier:</strong> Each record is evaluated against gravitational, electrical, pneumatic, and chemical energy thresholds.
+              </p>
+              <p className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                3. <strong className="text-emerald-400">Barrier Audit:</strong> Records with absent or failed primary barriers are automatically escalated to the Critical Alert Center.
+              </p>
             </div>
           </div>
 
+          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-400">
+            Current pipeline latency: ~0.4s per record
+          </div>
         </div>
-      )}
+
+      </div>
+
+      {/* Batch Processing Output Table */}
+      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div>
+            <h3 className="text-base font-bold text-white">Ingested Batch Telemetry</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Records processed during active session</p>
+          </div>
+          <span className="text-xs font-mono text-amber-400 font-bold">4 Verified Records</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                <th className="py-3 px-2">Batch Ref</th>
+                <th className="py-3 px-2">Site / Unit</th>
+                <th className="py-3 px-2">Observation Description</th>
+                <th className="py-3 px-2">Detected Hazard</th>
+                <th className="py-3 px-2">SIF Assessment</th>
+                <th className="py-3 px-2 text-right">AI Conf.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {sampleBatchResults.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-900/40 transition-colors">
+                  <td className="py-3.5 px-2 font-mono font-bold text-cyan-400">
+                    {item.ref}
+                  </td>
+                  <td className="py-3.5 px-2 font-medium text-slate-300">
+                    {item.site}
+                  </td>
+                  <td className="py-3.5 px-2 text-slate-300 max-w-sm truncate">
+                    {item.desc}
+                  </td>
+                  <td className="py-3.5 px-2 text-slate-400">
+                    {item.hazard}
+                  </td>
+                  <td className="py-3.5 px-2">
+                    {item.isSIF ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        SIF Precursor
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Non-SIF
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-2 text-right font-mono font-bold text-slate-200">
+                    {item.conf}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
     </div>
   );
