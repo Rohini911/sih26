@@ -246,8 +246,8 @@ export default function CinematicVideoSection({
                           ? isMoving
 
                             ? `
-                              translateX(110%)
-                              rotate(8deg)
+                              translateX(-110%)
+                              rotate(-8deg)
                               scale(0.92)
                             `
 
@@ -259,9 +259,9 @@ export default function CinematicVideoSection({
 
                           // BACK IMAGES
                           : `
-                            translateX(${stackIndex * 12}px)
+                            translateX(-${stackIndex * 12}px)
                             translateY(${stackIndex * 12}px)
-                            rotate(${stackIndex * 2}deg)
+                            rotate(-${stackIndex * 2}deg)
                             scale(${1 - stackIndex * 0.035})
                           `,
 

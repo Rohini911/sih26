@@ -975,16 +975,22 @@ export default function LifeSavingRulesSection() {
               flex
               items-center
               justify-center
+              lg:justify-start
+              lg:pl-[calc(50%+2.5rem)]
+              lg:pr-8
+              xl:pr-14
               p-4
-              bg-black/85
-              backdrop-blur-md
+              sm:p-6
+              bg-black/20
               animate-in
               fade-in
               duration-200
             "
+            onClick={() => setSelectedRule(null)}
           >
 
             <div
+              onClick={(e) => e.stopPropagation()}
               className="
                 bg-[#0F0F16]
                 border
@@ -1000,6 +1006,11 @@ export default function LifeSavingRulesSection() {
                 relative
                 max-h-[90vh]
                 overflow-y-auto
+                animate-in
+                fade-in
+                zoom-in-95
+                lg:slide-in-from-right-8
+                duration-300
               "
             >
 

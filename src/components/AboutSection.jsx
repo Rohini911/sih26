@@ -7,7 +7,7 @@ import image4 from '../assets/image4.jpg';
 import image5 from '../assets/image5.jpg';
 import image6 from '../assets/image6.jpg';
 
-import { CheckCircle2, Flame } from 'lucide-react';
+import { CheckCircle2, Flame, ArrowRight } from 'lucide-react';
 
 export default function AboutSection({ onExplore }) {
   const images = [
@@ -74,11 +74,11 @@ export default function AboutSection({ onExplore }) {
               className="
                 relative
                 mx-auto
+                h-[430px]
+                w-full
                 max-w-md
+                sm:h-[480px]
                 lg:max-w-none
-                h-80
-                sm:h-96
-                md:h-[420px]
               "
             >
 
@@ -87,11 +87,6 @@ export default function AboutSection({ onExplore }) {
 
                 const isFront = stackIndex === 0;
 
-                // Only show 4 cards in the visible stack
-                if (stackIndex > 3) {
-                  return null;
-                }
-
                 return (
                   <div
                     key={imageIndex}
@@ -99,53 +94,141 @@ export default function AboutSection({ onExplore }) {
                     className={`
                       absolute
                       inset-0
-                      rounded-3xl
                       overflow-hidden
-                      bg-white
+                      rounded-3xl
                       border
                       border-slate-200
-                      shadow-xl
-
-                      ${isMoving && isFront
-                        ? `
-                            z-10
-                            opacity-100
-                            translate-x-24
-                            translate-y-8
-                            scale-[0.88]
-                            rotate-6
-                          `
-                        : `
-                            ${stackIndex === 0
-                          ? 'z-40 scale-100 translate-x-0 translate-y-0 rotate-0'
-                          : stackIndex === 1
-                            ? 'z-30 scale-[0.95] translate-x-4 translate-y-2 rotate-1'
-                            : stackIndex === 2
-                              ? 'z-20 scale-[0.90] translate-x-8 translate-y-4 rotate-2'
-                              : 'z-10 scale-[0.85] translate-x-12 translate-y-6 rotate-3'
-                        }
-                          `
-                      }
-
+                      bg-white
+                      shadow-2xl
                       transition-all
                       duration-700
                       ease-in-out
-
                       ${isFront ? 'cursor-pointer' : ''}
                     `}
+                    style={{
+                      zIndex: images.length - stackIndex,
+                      transform:
+                        stackIndex === 0
+                          ? isMoving
+                            ? `
+                              translateX(-110%)
+                              rotate(-8deg)
+                              scale(0.92)
+                            `
+                            : `
+                              translateX(0)
+                              rotate(0deg)
+                              scale(1)
+                            `
+                          : `
+                            translateX(-${stackIndex * 12}px)
+                            translateY(${stackIndex * 12}px)
+                            rotate(-${stackIndex * 2}deg)
+                            scale(${1 - stackIndex * 0.035})
+                          `,
+                      opacity:
+                        stackIndex > 3
+                          ? 0
+                          : 1 - stackIndex * 0.12,
+                    }}
                   >
 
                     <img
                       src={images[imageIndex]}
                       alt={`Industrial safety image ${imageIndex + 1}`}
                       className="
-                        w-full
                         h-full
+                        w-full
                         object-cover
                         select-none
                         pointer-events-none
                       "
                     />
+
+                    {/* Gradient overlay */}
+                    <div
+                      className="
+                        pointer-events-none
+                        absolute
+                        inset-0
+                        bg-gradient-to-t
+                        from-black/50
+                        via-transparent
+                        to-transparent
+                      "
+                    />
+
+                    {/* Front image content badge & action */}
+                    {isFront && (
+                      <div
+                        className="
+                          absolute
+                          bottom-5
+                          left-5
+                          right-5
+                          flex
+                          items-center
+                          justify-between
+                        "
+                      >
+                        <div
+                          className="
+                            rounded-xl
+                            bg-black/60
+                            px-4
+                            py-2
+                            backdrop-blur-md
+                          "
+                        >
+                          <p
+                            className="
+                              text-xs
+                              font-semibold
+                              uppercase
+                              tracking-widest
+                              text-amber-300
+                            "
+                          >
+                            About SafetyAI
+                          </p>
+                          <p
+                            className="
+                              mt-1
+                              text-sm
+                              font-semibold
+                              text-white
+                            "
+                          >
+                            Precursor Intelligence
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            nextImage();
+                          }}
+                          className="
+                            flex
+                            h-11
+                            w-11
+                            items-center
+                            justify-center
+                            rounded-full
+                            bg-amber-400
+                            text-slate-950
+                            shadow-lg
+                            transition-transform
+                            duration-300
+                            hover:scale-110
+                          "
+                          aria-label="Show next safety image"
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                        </button>
+                      </div>
+                    )}
 
                   </div>
                 );
