@@ -1640,11 +1640,9 @@ export default function AIAnalysisView() {
               {allWeakSignals.map((sig) => (
                 <div 
                   key={sig.id}
-                  className={`rounded-2xl bg-white border p-6 shadow-sm space-y-4 transition-all duration-300 text-slate-800 ${
-                    (!isNonSafety && sig.isPresentInCurrent) ? 'border-orange-300 ring-2 ring-orange-400/20' : 'border-[#EAE6E1] hover:border-slate-300'
-                  }`}
+                  className="rounded-2xl bg-white border border-[#EAE6E1] hover:border-slate-300 p-6 shadow-sm space-y-4 transition-all duration-300 text-slate-800"
                 >
-                  {/* Category & Identified By 2+ Records Badge */}
+                  {/* Category & Identified By Records Badge */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg">
@@ -1655,18 +1653,7 @@ export default function AIAnalysisView() {
                       </span>
                     </div>
 
-                    {/* Prominent Status Badges */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {(!isNonSafety && sig.isPresentInCurrent) ? (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 font-mono flex items-center gap-1.5 shadow-2xs">
-                          <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-                          <span>ACTIVE IN CURRENT OBSERVATION</span>
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-[10.5px] font-medium bg-slate-100 text-slate-500 border border-slate-200 font-mono">
-                          Cross-Plant Surveillance Only
-                        </span>
-                      )}
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1.5 font-mono shadow-2xs">
                         <Layers className="w-3.5 h-3.5 text-blue-600" />
                         <span>Identified by {sig.identifyingRecords?.length || 2} Records</span>
