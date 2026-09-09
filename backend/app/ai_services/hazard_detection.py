@@ -39,7 +39,7 @@ def detect_hazard(text: str) -> Optional[str]:
     if re.search(r'\b(trench|excavation|cave-in|collapse|shoring|unstable slope)\b', lower_text):
         return "Excavation & Trench Collapse Hazard"
     
-    if re.search(r'\b(slip|trip|uneven surface|housekeeping|water on floor|debris)\b', lower_text):
-        return "Low-Energy Slip, Trip, or Surface Housekeeping Hazard"
+    if re.search(r'\b(slip\w*|slippery|slick|trip|uneven surface|housekeeping|water on floor|debris)\b', lower_text):
+        return "Slip / Fall"
 
     return None

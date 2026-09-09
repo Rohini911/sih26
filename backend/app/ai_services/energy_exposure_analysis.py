@@ -25,9 +25,13 @@ def analyze_energy_and_exposure(text: str) -> Dict[str, Optional[str]]:
         energy_source = "Thermal Energy (High temperature / open flame / flammable vapor)"
     elif re.search(r'\b(acid|toxic gas|h2s|chemical|corrosive|hazardous fluid)\b', lower_text):
         energy_source = "Chemical / Toxic Energy (Acute toxicity / corrosive contact)"
+    elif re.search(r'\b(slip\w*|slippery|slick|trip|uneven surface|water on floor)\b', lower_text):
+        energy_source = "Gravity / Kinetic"
 
     # 2. Exposure Context Detection
-    if re.search(r'\b(standing under|beneath|in drop zone|near crane|under load)\b', lower_text):
+    if re.search(r'\b(slip\w*|slippery|slick|trip|walking|entrance|door|corridor|path)\b', lower_text) and "slip" in lower_text or "slippery" in lower_text or "slick" in lower_text:
+        exposure = "Potential slip/fall exposure"
+    elif re.search(r'\b(standing under|beneath|in drop zone|near crane|under load)\b', lower_text):
         exposure = "Worker directly exposed in line-of-fire beneath suspended load"
     elif re.search(r'\b(at height|on scaffold|on roof|on ladder|near open edge|at elevation)\b', lower_text):
         exposure = "Worker exposed to unprotected fall edge at elevation"
@@ -43,6 +47,6 @@ def analyze_energy_and_exposure(text: str) -> Dict[str, Optional[str]]:
         exposure = "Worker performing high-risk task without primary protection barrier"
 
     return {
-        "energy_source": energy_source,
-        "exposure": exposure
+        "energy_source": energy_source or "Insufficient Information",
+        "exposure": exposure or "Insufficient Information"
     }

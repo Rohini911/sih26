@@ -82,22 +82,24 @@ def assess_sif_precursor(
         }
 
     # Evaluate High-Consequence Hazards
-    is_high_energy_hazard = hazard and any(key in hazard.lower() for key in [
-        "suspended load", "dropped object", "fall", "height", "arc flash", 
+    is_high_energy_hazard = hazard and "slip" not in hazard.lower() and any(key in hazard.lower() for key in [
+        "suspended load", "dropped object", "fall from height", "work at height", "height", "arc flash", 
         "electrical", "confined space", "hazardous energy", "stored pressure", 
         "mobile equipment", "vehicle", "rotating machinery", "entanglement", "fire", "thermal", "chemical"
     ])
 
     has_active_exposure = exposure is not None or len(signals) > 0
-    has_barrier_gap = barrier_status in ["BARRIER_MISSING", "BARRIER_FAILED", "BARRIER_UNKNOWN"]
+    has_barrier_gap = barrier_status in ["BARRIER_MISSING", "BARRIER_FAILED"]
 
     # Determine Potential Consequence
     potential_consequence = None
     if hazard:
         if "Suspended Load" in hazard or "Dropped Object" in hazard:
             potential_consequence = "Potential blunt force trauma, crush injury, or fatality from falling heavy mass."
-        elif "Work at Height" in hazard or "Fall" in hazard:
+        elif "Work at Height" in hazard or "Fall from Height" in hazard:
             potential_consequence = "Potential severe deceleration injury, spinal trauma, or fatality due to fall from height."
+        elif "Slip" in hazard or "Trip" in hazard:
+            potential_consequence = "Potential low-severity slip or minor contusion."
         elif "Electrical" in hazard or "Arc Flash" in hazard:
             potential_consequence = "Potential high-voltage electrical shock, severe arc flash thermal burns, or electrocution."
         elif "Confined Space" in hazard or "Toxic Gas" in hazard:
@@ -130,12 +132,12 @@ def assess_sif_precursor(
             "ml_probabilities": ml_probabilities
         }
     
-    # If it's a minor housekeeping or low-energy event with no severe exposure
-    if hazard and "Slip, Trip, or Surface Housekeeping" in hazard and not signals:
+    # If it's a slip/fall or minor housekeeping event without high-energy or severe exposure
+    if hazard and ("Slip / Fall" in hazard or "Slip, Trip, or Surface Housekeeping" in hazard) and not is_high_energy_hazard:
         return {
             "assessment": "NO",
             "potential_consequence": potential_consequence or "Low-severity slip or minor contusion.",
-            "reason": "Available report information indicates a low-energy condition without high-consequence energy sources or severe exposure.",
+            "reason": "Classified as Non-SIF because the report indicates a slip/fall hazard but does not provide evidence of high-energy exposure, significant worker exposure, or a barrier deficiency.",
             "ml_sif_prediction": ml_sif_prediction,
             "ml_sif_confidence": ml_sif_confidence,
             "ml_model": ml_model,

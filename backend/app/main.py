@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(reports.router)
 app.include_router(analysis.router)
+app.include_router(analysis.ai_analysis_router)
 app.include_router(sif_intelligence.router)
 app.include_router(feedback.router)
 app.include_router(dashboard.router)

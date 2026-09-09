@@ -44,6 +44,8 @@ def generate_explanation(
         return " ".join(parts)
 
     else: # NO
+        if hazard and "Slip" in hazard:
+            return "Classified as Non-SIF because the report indicates a slip/fall hazard but does not provide evidence of high-energy exposure, significant worker exposure, or a barrier deficiency."
         parts = []
         parts.append(
             "Based on the available report information, this observation does not indicate a high-energy SIF precursor."

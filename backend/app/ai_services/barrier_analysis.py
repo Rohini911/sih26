@@ -17,7 +17,7 @@ def analyze_barriers(text: str) -> Dict[str, str]:
         }
     
     # 2. Failed Barriers
-    if re.search(r'\b(snapped|broke|failed|slipped|malfunctioned|cracked|gave way|detached|dislodged|faulty)\b', lower_text):
+    if re.search(r'\b(snapped|broke|failed|barrier failed|malfunctioned|cracked|gave way|detached|dislodged|faulty)\b', lower_text):
         return {
             "status": "BARRIER_FAILED",
             "description": "A safety barrier or equipment mechanism experienced physical failure, degradation, or operational malfunction."
@@ -32,6 +32,6 @@ def analyze_barriers(text: str) -> Dict[str, str]:
     
     # 4. Unknown / Insufficient Barrier Data
     return {
-        "status": "BARRIER_UNKNOWN",
-        "description": "Information regarding safety controls or barriers was not identified or specified in the available report text."
+        "status": "BARRIER_INSUFFICIENT_INFO",
+        "description": "Insufficient Information"
     }
