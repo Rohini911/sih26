@@ -20,7 +20,10 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-import joblib
+try:
+    import joblib
+except ImportError:
+    joblib = None
 
 logger = logging.getLogger("sif_ml_inference")
 
@@ -94,6 +97,11 @@ def get_model():
         raise RuntimeError(_MODEL_LOAD_ERROR)
 
     _MODEL_LOAD_ATTEMPTED = True
+
+    if joblib is None:
+        _MODEL_LOAD_ERROR = "joblib is not installed in the environment."
+        logger.warning(_MODEL_LOAD_ERROR)
+        raise RuntimeError(_MODEL_LOAD_ERROR)
 
     model_path = resolve_model_path()
     if not model_path:
