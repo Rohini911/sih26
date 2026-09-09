@@ -233,14 +233,45 @@ function autoPersistToTotalRecords(newRecord) {
 }
 
 const SAFETY_KEYWORDS = [
-  'leak', 'gas', 'fire', 'flame', 'smoke', 'spark', 'electrical', 'wire',
-  'arc', 'cable', 'breaker', 'panel', 'switch', 'valve', 'pipe', 'pipeline',
-  'tank', 'cylinder', 'pressure', 'relief', 'hazard', 'unsafe', 'danger',
-  'fall', 'height', 'scaffold', 'ladder', 'crane', 'lift', 'rigging', 'sling',
-  'hoist', 'confined', 'asphyxiat', 'toxic', 'chemical', 'acid', 'corros',
-  'spill', 'blowout', 'explosion', 'blast', 'burn', 'hot work', 'welding',
-  'grinding', 'lockout', 'tagout', 'loto', 'ppe', 'grating', 'slip', 'trip',
-  'housekeeping', 'water', 'oil', 'pump', 'engine', 'compressor'
+  // Hazards, Incidents & Conditions
+  'leak', 'gas', 'fire', 'flame', 'smoke', 'spark', 'explosion', 'blast', 'burn', 'flash',
+  'spill', 'blowout', 'hazard', 'unsafe', 'danger', 'risk', 'incident', 'injury', 'injur',
+  'hurt', 'wound', 'fatality', 'fatal', 'precursor', 'sif', 'near miss', 'accident',
+  'damage', 'defect', 'rupture', 'burst', 'crack', 'collapse', 'corros', 'rust', 'erosion',
+  'slip', 'trip', 'fall', 'dropped', 'falling', 'pinch', 'crush', 'struck', 'whipping',
+  'flying', 'sharp', 'cut', 'amputation', 'puncture', 'impact', 'collision',
+  
+  // Electrical & Energy Isolation
+  'electrical', 'electric', 'voltage', '11kv', '415v', 'wire', 'arc', 'cable', 'breaker',
+  'panel', 'switch', 'switchgear', 'switchboard', 'transformer', 'conduit', 'fuse', 'loto',
+  'lockout', 'tagout', 'isolation', 'isolate', 'energiz', 'de-energiz', 'grounding', 'earthing',
+  'shock', 'electrocution', 'overheat', 'short circuit',
+  
+  // Pressure, Piping & Fluids
+  'valve', 'pipe', 'pipeline', 'flange', 'gasket', 'tank', 'cylinder', 'pressure', 'relief',
+  'psi', 'bar', 'hiss', 'seep', 'weep', 'discharge', 'vent', 'flare', 'manifold', 'separator',
+  'vessel', 'boiler', 'steam', 'hydraulic', 'pneumatic', 'fluid', 'gauge', 'meter',
+  
+  // Chemicals & Atmosphere
+  'toxic', 'chemical', 'acid', 'caustic', 'asphyx', 'h2s', 'methane', 'propane', 'lpg',
+  'hydrocarbon', 'fume', 'vapor', 'vapour', 'co2', 'nitrogen', 'oxygen', 'lel', 'gas detector',
+  'monitor', 'detector', 'sensor', 'sniff', 'smell', 'odor', 'odour', 'dust', 'confined',
+  
+  // Mechanical, Lifting & Work at Height
+  'crane', 'lift', 'hoist', 'rigging', 'sling', 'shackle', 'hook', 'winch', 'wire rope',
+  'load', 'suspended', 'derrick', 'rig', 'drill', 'casing', 'tongs', 'rotary', 'wellhead',
+  'scaffold', 'scaffolding', 'ladder', 'height', 'catwalk', 'grating', 'deck', 'platform',
+  'guardrail', 'handrail', 'harness', 'lanyard', 'lifeline', 'anchor', 'tie-off', 'manway',
+  
+  // Barriers, Controls & PPE
+  'barrier', 'barricade', 'fence', 'guard', 'interlock', 'e-stop', 'emergency stop', 'alarm',
+  'siren', 'ppe', 'helmet', 'hard hat', 'glasses', 'goggle', 'gloves', 'boots', 'respirator',
+  'mask', 'permit', 'ptw', 'work authorization', 'signage', 'caution', 'warning',
+  
+  // Plant Equipment, Mobile & Logistics
+  'pump', 'engine', 'compressor', 'turbine', 'generator', 'motor', 'forklift', 'truck',
+  'vehicle', 'trailer', 'traffic', 'reversing', 'driver', 'driving', 'seatbelt', 'brake',
+  'excavat', 'trench', 'pit', 'housekeeping', 'clutter', 'obstruction', 'puddle'
 ];
 
 const UNRELATED_TERMS = [
@@ -251,18 +282,29 @@ const UNRELATED_TERMS = [
   '1234', 'blank', 'empty', 'null', 'undefined', 'nothin', 'clear', 'clean', 'normal'
 ];
 
+const CONVERSATIONAL_PATTERNS = [
+  /\b(beautiful|handsome|gorgeous|cute|pretty|sweet|sexy)\b/i,
+  /\b(how\s+are\s+you|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)\b/i,
+  /\b(love\s+(you|this)|like\s+you|hate\s+you|marry\s+me)\b/i,
+  /\b(good\s+(morning|afternoon|evening|night|day))\b/i,
+  /\b(thank\s+you|thanks\s+a\s+lot|thanks|bye|goodbye|see\s+you)\b/i,
+  /\b(you\s+are\s+(so|very|really)?\s*(cool|smart|great|good|bad|nice|awesome|amazing|wonderful))\b/i,
+  /\b(tell\s+me\s+a\s+joke|sing\s+a\s+song|weather|movie|music)\b/i,
+  /^(hi|hii|hiii|hello|hey|heyy|yo|test|testing|check)\b/i
+];
+
 function isUnrelatedIssue(text) {
   if (!text) return true;
   const cleaned = text.trim().toLowerCase();
   if (cleaned.length === 0) return true;
   if (UNRELATED_TERMS.includes(cleaned)) return true;
-  if (/^(nothing|no issue|no hazard|all good|test|testing|hello|hi\b)/i.test(cleaned)) {
-    return true;
-  }
+  if (CONVERSATIONAL_PATTERNS.some(p => p.test(cleaned))) return true;
+
   const hasSafetyWord = SAFETY_KEYWORDS.some(k => cleaned.includes(k));
   if (!hasSafetyWord) {
-    if (cleaned.length < 20) return true;
+    return true;
   }
+  if (cleaned.length < 4) return true;
   return false;
 }
 
@@ -771,6 +813,35 @@ export default function AIAnalysisView() {
         setTimeout(() => {
           setIsAnalyzing(false);
           setAnalysisStep('');
+
+          if (backendResult.is_unrelated) {
+            setValidationError('Enter Correct Issue: Please describe an active operational safety observation, equipment condition, or hazard.');
+            setAnalysisResult({
+              is_unrelated: true,
+              report_name: 'Enter Correct Issue',
+              sif_precursor: 'NO',
+              confidence: 0,
+              risk_score: 0,
+              classification: rType,
+              detected_hazards: [
+                'Observation does not contain recognized industrial safety hazards or equipment context',
+                'Zero physical energy vectors or critical barrier failures found in input'
+              ],
+              energy_source: 'None Identified',
+              barrier_status: 'Not Applicable (Unrelated Input)',
+              iogp_rule: 'Not Applicable',
+              explainable_reasoning: `The input "${text}" is not recognized as a related operational safety issue. Please enter a correct safety issue describing equipment, location, barrier conditions, or hazardous energy vectors.`,
+              recommended_controls: [
+                'Enter a correct safety issue describing equipment, location, and conditions',
+                'Include specific hazard parameters (e.g. pressure, voltage, chemical, elevation)',
+                'Or click below to populate a pre-configured verified operational report'
+              ],
+              corrective_actions: [
+                'Provide frontline coaching on entering actionable safety observations'
+              ]
+            });
+            return;
+          }
 
           const detStatus = (backendResult.determination_status || '').toLowerCase();
           const sifVal = backendResult.sif_precursor || (detStatus.includes('sif') && !detStatus.includes('no sif') && !detStatus.includes('not a sif') ? 'YES' : detStatus.includes('insufficient') ? 'INSUFFICIENT_INFORMATION' : 'NO');

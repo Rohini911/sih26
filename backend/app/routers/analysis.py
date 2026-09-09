@@ -124,9 +124,75 @@ def generate_dynamic_recommendations(hazard: Optional[str], text: str) -> List[s
             "Log findings in facility safety maintenance tracking register."
         ]
 
+import re
+
+SAFETY_KEYWORDS_PATTERN = re.compile(
+    r'\b(leak|leaking|seepage|gas|fire|flame|smoke|spark|explosion|blast|burn|flash|'
+    r'spill|blowout|hazard|unsafe|danger|risk|incident|injury|injured|wound|fatality|fatal|'
+    r'precursor|sif|near miss|accident|damage|defect|rupture|burst|crack|collapse|corrosion|'
+    r'rust|slip|slipping|slipped|trip|tripping|tripped|fall|falling|fell|dropped|pinch|crush|'
+    r'struck|whipping|flying|sharp|cut|electrical|electric|voltage|11kv|415v|wire|arc|cable|'
+    r'breaker|panel|switch|switchgear|switchboard|transformer|loto|lockout|tagout|isolation|'
+    r'isolate|isolated|shock|valve|pipe|pipeline|flange|gasket|tank|cylinder|pressure|relief|'
+    r'hiss|manifold|vessel|boiler|steam|hydraulic|pneumatic|toxic|chemical|acid|caustic|'
+    r'h2s|hydrocarbon|fume|vapor|confined|crane|lift|lifting|hoist|rigging|sling|shackle|'
+    r'derrick|rig|drill|casing|scaffold|scaffolding|ladder|height|catwalk|grating|deck|'
+    r'guardrail|harness|lanyard|barrier|barricade|guard|interlock|e-stop|alarm|ppe|helmet|'
+    r'goggle|gloves|respirator|permit|ptw|pump|compressor|turbine|generator|forklift|truck|'
+    r'vehicle|trailer|reversing|excavat|trench|housekeeping|puddle)\b',
+    re.IGNORECASE
+)
+
+CONVERSATIONAL_PATTERN = re.compile(
+    r'\b(beautiful|handsome|gorgeous|cute|pretty|sweet|sexy|'
+    r'how are you|who are you|what is your name|love you|hate you|'
+    r'good morning|good afternoon|good evening|good night|thank you|thanks|'
+    r'you are|tell me a joke|weather|movie|music|hello|hey|yo)\b',
+    re.IGNORECASE
+)
+
+def is_unrelated_input(text: str) -> bool:
+    if not text:
+        return True
+    cleaned = text.strip()
+    if len(cleaned) < 4:
+        return True
+    if CONVERSATIONAL_PATTERN.search(cleaned) and not SAFETY_KEYWORDS_PATTERN.search(cleaned):
+        return True
+    if not SAFETY_KEYWORDS_PATTERN.search(cleaned):
+        return True
+    return False
+
 def handle_live_analysis(payload: LiveAnalysisRequest) -> Dict[str, Any]:
     text = payload.report_text.strip()
     r_type = payload.report_type or "Near Miss"
+
+    # Intercept unrelated, conversational, or non-safety inputs
+    if is_unrelated_input(text):
+        return {
+            "is_unrelated": True,
+            "report_name": "Enter Correct Issue",
+            "determination_status": "UNRELATED INPUT",
+            "sif_precursor": "NO",
+            "sif_potential_score": 0,
+            "confidence": 0,
+            "detected_hazards": [
+                "Observation does not contain recognized industrial safety hazards or equipment context",
+                "Zero physical energy vectors or critical barrier failures found in input"
+            ],
+            "energy_vector": "None Identified",
+            "worker_exposure": "Not Applicable",
+            "barrier_status": "Not Applicable (Unrelated Input)",
+            "life_saving_rule": "Not Applicable",
+            "recommendations": [
+                "Enter a correct safety issue describing equipment, location, and conditions",
+                "Include specific hazard parameters (e.g. pressure, voltage, chemical, elevation)"
+            ],
+            "corrective_actions": [
+                "Provide frontline coaching on entering actionable safety observations"
+            ],
+            "explanation": f'The input "{text}" is not recognized as a related operational safety issue. Please enter a correct safety issue describing equipment, location, barrier conditions, or hazardous energy vectors.'
+        }
     
     # Run 10-step AI pipeline
     raw_result = analyze_safety_report(
