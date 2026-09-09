@@ -243,24 +243,36 @@ const SAFETY_KEYWORDS = [
   'housekeeping', 'water', 'oil', 'pump', 'engine', 'compressor'
 ];
 
-function isTrivialInput(text) {
+const UNRELATED_TERMS = [
+  'nothing', 'none', 'nil', 'na', 'n/a', 'not applicable', 'no issue', 'no issues', 
+  'no hazard', 'nothing to report', 'all good', 'all normal', 'ok', 'okay', 'fine', 
+  'good', 'test', 'testing', 'hi', 'hii', 'hiii', 'hiiii', 'hello', 'hey', 'heyy', 'check', 
+  'demo', 'sample', 'abc', 'xyz', 'foo', 'bar', 'asdf', 'qwerty', 'asdfgh', '123', 
+  '1234', 'blank', 'empty', 'null', 'undefined', 'nothin', 'clear', 'clean', 'normal'
+];
+
+function isUnrelatedIssue(text) {
   if (!text) return true;
   const cleaned = text.trim().toLowerCase();
-  const trivialGreetings = [
-    'hi', 'hii', 'hiii', 'hiiii', 'hello', 'hey', 'heyy', 'test', 'testing', 
-    'check', 'ok', 'okay', 'demo', 'sample', 'abc', 'xyz', 'foo', 'bar', 'asdf'
-  ];
-  if (trivialGreetings.includes(cleaned)) return true;
-  if (cleaned.length < 6) {
-    const hasSafetyWord = SAFETY_KEYWORDS.some(k => cleaned.includes(k));
-    if (!hasSafetyWord) return true;
+  if (cleaned.length === 0) return true;
+  if (UNRELATED_TERMS.includes(cleaned)) return true;
+  if (/^(nothing|no issue|no hazard|all good|test|testing|hello|hi\b)/i.test(cleaned)) {
+    return true;
+  }
+  const hasSafetyWord = SAFETY_KEYWORDS.some(k => cleaned.includes(k));
+  if (!hasSafetyWord) {
+    if (cleaned.length < 20) return true;
   }
   return false;
 }
 
+function isTrivialInput(text) {
+  return isUnrelatedIssue(text);
+}
+
 function deriveReportName(text, type, loc) {
   if (!text) return `Safety Observation (${loc})`;
-  if (isTrivialInput(text)) return 'Non-Safety Observation / Insufficient Operational Data';
+  if (isUnrelatedIssue(text)) return 'Enter Correct Issue';
   const matched = AVAILABLE_UPLOADED_REPORTS.find(r => r.text.trim() === text.trim());
   if (matched && matched.name) return matched.name;
 
@@ -574,72 +586,43 @@ export default function AIAnalysisView() {
       setAnalysisStep('Phase 4/4: Computing neural risk score & SIF precursor determination...');
     }, 750);
 
-    const isTrivial = isTrivialInput(text);
+    const isUnrelated = isUnrelatedIssue(text);
     const reportName = deriveReportName(text, rType, loc);
 
-    // TRIVIAL INPUT INTERCEPT: Greetings & non-safety test inputs always resolve to Score 0 / SIF NO
-    if (isTrivial) {
+    // UNRELATED / TRIVIAL INPUT INTERCEPT: Prompt user to enter a correct safety issue
+    if (isUnrelated) {
       setTimeout(() => {
         setIsAnalyzing(false);
         setAnalysisStep('');
+        setValidationError('Enter Correct Issue: Please describe an active operational safety observation, equipment condition, or hazard.');
 
         const finalResult = {
-          report_name: 'Non-Safety Observation / Insufficient Operational Data',
+          is_unrelated: true,
+          report_name: 'Enter Correct Issue',
           sif_precursor: 'NO',
-          confidence: 99.2,
+          confidence: 0,
           risk_score: 0,
           classification: rType,
           detected_hazards: [
-            'Non-Safety Observation / Insufficient Hazard Information',
-            'Zero Active Energy Vectors or Life-Saving Rule Breaches Detected',
-            'Weak Signal Surveillance: No latent precursor weak signals detected; non-safety/test input'
+            'Observation does not contain recognized industrial safety hazards or equipment context',
+            'Zero physical energy vectors or critical barrier failures found in input'
           ],
-          energy_source: 'NONE (0 Joules)',
-          barrier_status: 'NOT APPLICABLE (NO HAZARD PRESENT)',
-          iogp_rule: 'Not Applicable (No Rule Breach)',
-          explainable_reasoning: `Input "${text}" is a greeting or test text with ZERO industrial safety hazard indicators, physical energy vectors, or barrier failures. System has classified this scenario with a 0 Risk Score as a Non-SIF observation.`,
+          energy_source: 'None Identified',
+          barrier_status: 'Not Applicable (Unrelated Input)',
+          iogp_rule: 'Not Applicable',
+          explainable_reasoning: `The input "${text}" is not recognized as a related operational safety issue. Please enter a correct safety issue describing equipment, location, barrier conditions, or hazardous energy vectors.`,
           recommended_controls: [
-            'Provide a descriptive operational observation text with equipment, location, and hazard specifics',
-            'Ensure observation includes physical conditions (e.g. pressure, temperature, chemicals, elevation)',
-            'Refer to site incident reporting standard for required reporting data fields'
+            'Enter a correct safety issue describing equipment, location, and conditions',
+            'Include specific hazard parameters (e.g. pressure, voltage, chemical, elevation)',
+            'Or click below to populate a pre-configured verified operational report'
           ],
           corrective_actions: [
-            'No CAPA required for non-hazard or test submission',
-            'Frontline user coaching on reporting high-quality safety observations'
+            'Provide frontline coaching on entering actionable safety observations'
           ]
         };
 
         setAnalysisResult(finalResult);
-
-        // Persist into Central Safety Store & Total Records Ledger
-        const currentRecords = getStoredTotalRecords();
-        const nextRef = `REP-ID001-000${currentRecords.length + 1}`;
-        const newRecordToSave = {
-          id: Date.now(),
-          report_reference: nextRef,
-          report_name: finalResult.report_name,
-          report_type: rType === 'NEAR_MISS' ? 'Near Miss' : rType === 'UNSAFE_ACT' ? 'Unsafe Act' : 'Unsafe Condition',
-          description: text.slice(0, 100),
-          location: loc,
-          facility_unit: `${loc} Active Operations`,
-          report_date: reportDate,
-          risk_level: 'Low',
-          sif_precursor_assessment: 'NO',
-          ai_score: 0,
-          status: 'Closed',
-          identified_hazard: finalResult.detected_hazards[0],
-          energy_source: finalResult.energy_source,
-          barrier_status: finalResult.barrier_status,
-          recommended_action: 'Routine operational logging and shift review.'
-        };
-
-        const centralSaved = addReportRecord(newRecordToSave);
-        const persistResult = autoPersistToTotalRecords(newRecordToSave);
-        const savedRef = centralSaved?.report?.report_reference || persistResult?.record?.report_reference || nextRef;
-        const savedCount = centralSaved?.totalCount || persistResult?.totalCount || currentRecords.length + 1;
-        setAutoSavedInfo({ reference: savedRef, totalCount: savedCount });
-        setTotalStoredRecords(getStoredTotalRecords());
-      }, 700);
+      }, 400);
       return;
     }
 
@@ -862,144 +845,175 @@ export default function AIAnalysisView() {
         const isLifting = lower.includes('crane') || lower.includes('rigging') || lower.includes('sling') || lower.includes('hoist') || lower.includes('suspended') || lower.includes('lift');
         const isConfined = lower.includes('confined') || lower.includes('tank entry') || lower.includes('asphyxiat') || lower.includes('manhole');
         const isChemical = lower.includes('chemical') || lower.includes('acid') || lower.includes('caustic') || lower.includes('toxic') || lower.includes('spill');
+        const isFire = lower.includes('fire') || lower.includes('flame') || lower.includes('spark') || lower.includes('welding') || lower.includes('smoke') || lower.includes('hot work') || lower.includes('combustible') || lower.includes('burn');
 
-        let primaryHazard = 'Open Fire Outbreak & Rapid Flame Spread on Combustibles';
-        let secondHazard = 'Dense Toxic Smoke Inhalation Hazard & Electrical Short-Circuit Risk';
-        let weakSignal = 'Detected Weak Signal: Overheated Electrical Wiring & Unshielded Hot Work Sparks';
-        let energySource = 'Thermal Ignition Energy & Combustible Materials Flame';
-        let barrierStatus = 'FIRE BARRIER & HOT WORK CONTROLS BREACHED';
-        let iogpRule = 'Hot Work & Fire Prevention (LSR-06)';
-        let recControls = [
-          'Immediately activate building fire alarm and deploy CO2 or ABC dry chemical fire extinguisher',
-          'De-energize main electrical power breakers and close all gas/fuel supply valves in the area',
-          'Enforce strict 10-meter clearance free of combustible cardboard, oily rags, and solvent drums',
-          'Station a certified continuous Fire Watch with charged fire hose during and 30 minutes post-incident'
-        ];
-        let capaActions = [
-          'Conduct infrared thermal inspection across all electrical switchboards and breakers',
-          'Remove all combustible trash and maintain a 3-meter buffer in front of panels',
-          'Audit Hot Work permitting and verify all welders have flame-retardant blankets'
-        ];
+        const hasHighEnergy = isGas || isElectrical || isHeight || isLifting || isConfined || isChemical || isFire;
 
-        if (isGas) {
-          primaryHazard = 'Flammable Gas Leakage & Atmospheric Vapor Accumulation Hazard';
-          secondHazard = 'High Combustible Gas Concentration (>50% LEL) Near Potential Ignition Sources';
-          weakSignal = 'Detected Weak Signal: Flange Gasket Seal Micro-Leakage & Gas Hissing Sound';
-          energySource = 'High-Pressure Combustible Gas Potential (18–60 bar)';
-          barrierStatus = 'PRIMARY FLANGE GASKET SEAL COMPROMISED';
-          iogpRule = 'Loss of Containment & Gas Leak Prevention (LSR-05)';
-          recControls = [
-            'Immediately trigger Emergency Shutdown (ESD) valve to isolate gas supply line',
-            'Evacuate all personnel upwind and establish a 50-meter safety perimeter with zero ignition sources',
-            'Conduct continuous multi-gas detector testing (0% LEL verified) before any personnel entry',
-            'Depressurize line, replace damaged flange gasket or valve seal, and perform bubble leak test'
+        if (!hasHighEnergy) {
+          finalResult = {
+            report_name: reportName,
+            sif_precursor: 'NO',
+            confidence: 93.0,
+            risk_score: 22,
+            classification: rType,
+            detected_hazards: [
+              'Routine Operational Finding / Non-SIF Condition',
+              'Standard Industrial Facility Observation Under Normal Controls',
+              'Weak Signal Surveillance: Isolated operational event; no escalating SIF precursor pattern'
+            ],
+            energy_source: 'Low Kinetic / Ambient Mechanical (< 100 J)',
+            barrier_status: 'BARRIER INTACT / ROUTINE PROCEDURAL CONTROLS',
+            iogp_rule: 'Workplace Housekeeping Standards',
+            explainable_reasoning: `Analysis of "${reportName}" at "${loc}" classified this scenario as a ROUTINE SAFETY OBSERVATION (NON-SIF). No fatal energy vectors, catastrophic breach, or life-saving rule violations were identified. Standard operational controls remain fully sufficient.`,
+            recommended_controls: [
+              'Continue regular shift operational monitoring and maintain barrier integrity',
+              'Log observation in routine facility maintenance register for supervisor review',
+              'Verify area housekeeping during routine daily walkdown'
+            ],
+            corrective_actions: [
+              'Routine supervisor review during weekly safety meeting',
+              'Verify area equipment status in next shift handover'
+            ]
+          };
+        } else {
+          let primaryHazard = 'Open Fire Outbreak & Rapid Flame Spread on Combustibles';
+          let secondHazard = 'Dense Toxic Smoke Inhalation Hazard & Electrical Short-Circuit Risk';
+          let weakSignal = 'Detected Weak Signal: Overheated Electrical Wiring & Unshielded Hot Work Sparks';
+          let energySource = 'Thermal Ignition Energy & Combustible Materials Flame';
+          let barrierStatus = 'FIRE BARRIER & HOT WORK CONTROLS BREACHED';
+          let iogpRule = 'Hot Work & Fire Prevention (LSR-06)';
+          let recControls = [
+            'Immediately activate building fire alarm and deploy CO2 or ABC dry chemical fire extinguisher',
+            'De-energize main electrical power breakers and close all gas/fuel supply valves in the area',
+            'Enforce strict 10-meter clearance free of combustible cardboard, oily rags, and solvent drums',
+            'Station a certified continuous Fire Watch with charged fire hose during and 30 minutes post-incident'
           ];
-          capaActions = [
-            'Perform ultrasonic acoustic leak survey across all high-pressure gas valves and flanges',
-            'Inspect Emergency Shutdown (ESD) actuator response times and verify calibration',
-            'Provide crew refresher drill on gas leak emergency evacuation and upwind assembly'
+          let capaActions = [
+            'Conduct infrared thermal inspection across all electrical switchboards and breakers',
+            'Remove all combustible trash and maintain a 3-meter buffer in front of panels',
+            'Audit Hot Work permitting and verify all welders have flame-retardant blankets'
           ];
-        } else if (isElectrical) {
-          primaryHazard = 'Electrical Switchboard Overheating & Arc Flash Explosion Hazard';
-          secondHazard = 'Energized Electrical Conductor Exposure & Thermal Plasma Ignition';
-          weakSignal = 'Detected Weak Signal: Loose Terminal Lug Resistance & Thermal Hotspot';
-          energySource = 'High-Voltage Electrical Arc & Thermal Energy (415V/11kV)';
-          barrierStatus = 'ELECTRICAL ENCLOSURE & LOTO BARRIER COMPROMISED';
-          iogpRule = 'Energy Isolation & Lockout Tagout (LSR-02)';
-          recControls = [
-            'Trip upstream circuit breaker and verify zero energy with calibrated multimeter',
-            'Apply personal Lockout/Tagout padlock and danger tag before touching enclosure',
-            'Wear NFPA 70E Category 4 Arc Flash Suit and insulated safety gloves',
-            'Thermally scan all busbars and torque loose terminals to OEM specifications'
-          ];
-          capaActions = [
-            'Implement quarterly infrared thermography survey across all MCC panels',
-            'Audit lockout/tagout adherence with field electricians on monthly rota'
-          ];
-        } else if (isHeight) {
-          primaryHazard = 'Elevated Fall from Height & Incomplete Scaffold Platform Hazard';
-          secondHazard = 'Missing Guardrails and Toe-Boards at High Elevation';
-          weakSignal = 'Detected Weak Signal: Missing Scaffold Deck Clamps & Unanchored Planks';
-          energySource = 'Gravitational Potential Energy (> 2 Meters)';
-          barrierStatus = 'PASSIVE FALL PROTECTION & GUARDRAILS MISSING';
-          iogpRule = 'Working at Height (LSR-03)';
-          recControls = [
-            'Mandate 100% tie-off with dual lanyards to certified overhead anchor points',
-            'Install top-rails, mid-rails, and toe-boards across complete working deck',
-            'Red-tag scaffold immediately and prohibit worker access until re-inspected'
-          ];
-          capaActions = [
-            'Mandate daily scaffold inspection tag sign-off by certified scaffolding supervisor',
-            'Refresher training on full-body harness pre-use checks and lanyard inspection'
-          ];
-        } else if (isLifting) {
-          primaryHazard = 'Suspended Load Failure & Rigging Failure Impact Hazard';
-          secondHazard = 'Personnel Positioned Within Crane Line of Fire';
-          weakSignal = 'Detected Weak Signal: Synthetic Sling Abrasions & Damaged Hoist Wire Strands';
-          energySource = 'Suspended Kinetic & Gravitational Heavy Load Energy';
-          barrierStatus = 'RIGGING INTEGRITY & EXCLUSION ZONE BARRIERS FAILED';
-          iogpRule = 'Safe Mechanical Lifting (LSR-04)';
-          recControls = [
-            'Clear lift path and enforce strict physical barricades under suspended load',
-            'Discard frayed slings and re-verify crane rated load chart limits',
-            'Use tag lines to guide suspended loads rather than hands-on contact'
-          ];
-          capaActions = [
-            'Mandate third-party NDT inspection on all wire ropes and shackles',
-            'Conduct pre-lift safety briefing and verify lift plan before heavy hoists'
-          ];
-        } else if (isConfined) {
-          primaryHazard = 'Confined Space Oxygen Depletion & Toxic Gas Exposure Hazard';
-          secondHazard = 'Trapped Hazardous Atmosphere in Enclosed Tank Vessel';
-          weakSignal = 'Detected Weak Signal: Premature Tank Entry Without Calibrated Gas Test';
-          energySource = 'Chemical Asphyxiant & Toxic Atmospheric Vapor';
-          barrierStatus = 'CONFINED SPACE VENTILATION & ENTRY PERMIT FAILED';
-          iogpRule = 'Confined Space Entry (LSR-08)';
-          recControls = [
-            'Continuous 4-gas atmospheric testing (O2, H2S, CO, LEL) at three vessel depths',
-            'Deploy mechanical forced-draft ventilation fan before and during entry',
-            'Station dedicated Hole Watch / Standby Person with emergency retrieval hoist'
-          ];
-          capaActions = [
-            'Calibrate all portable gas monitors and verify bump-test logs daily',
-            'Simulate confined space rescue drill with emergency response squad'
-          ];
-        } else if (isChemical) {
-          primaryHazard = 'Corrosive Toxic Chemical Spray & Containment Bund Loss';
-          secondHazard = 'Pressurized Chemical Fluid Release Towards Personnel';
-          weakSignal = 'Detected Weak Signal: Pump Mechanical Seal Weeping Acid';
-          energySource = 'Chemical Reactivity & Hydraulic Pressurized Fluid';
-          barrierStatus = 'CONTAINMENT FLANGE & CHEMICAL SHIELD DEGRADED';
-          iogpRule = 'Toxic Chemical Containment & PPE (LSR-07)';
-          recControls = [
-            'Isolate pump suction/discharge valves and relieve line pressure to drain',
-            'Wear Level B chemical suit, acid-resistant face shield, and rubber boots',
-            'Neutralize escaped chemical within containment bund and verify eyewash station'
-          ];
-          capaActions = [
-            'Replace degraded mechanical seals with corrosion-resistant elastomer components',
-            'Audit emergency safety shower water flow and alarm transmitter functionality'
-          ];
+
+          if (isGas) {
+            primaryHazard = 'Flammable Gas Leakage & Atmospheric Vapor Accumulation Hazard';
+            secondHazard = 'High Combustible Gas Concentration (>50% LEL) Near Potential Ignition Sources';
+            weakSignal = 'Detected Weak Signal: Flange Gasket Seal Micro-Leakage & Gas Hissing Sound';
+            energySource = 'High-Pressure Combustible Gas Potential (18–60 bar)';
+            barrierStatus = 'PRIMARY FLANGE GASKET SEAL COMPROMISED';
+            iogpRule = 'Loss of Containment & Gas Leak Prevention (LSR-05)';
+            recControls = [
+              'Immediately trigger Emergency Shutdown (ESD) valve to isolate gas supply line',
+              'Evacuate all personnel upwind and establish a 50-meter safety perimeter with zero ignition sources',
+              'Conduct continuous multi-gas detector testing (0% LEL verified) before any personnel entry',
+              'Depressurize line, replace damaged flange gasket or valve seal, and perform bubble leak test'
+            ];
+            capaActions = [
+              'Perform ultrasonic acoustic leak survey across all high-pressure gas valves and flanges',
+              'Inspect Emergency Shutdown (ESD) actuator response times and verify calibration',
+              'Provide crew refresher drill on gas leak emergency evacuation and upwind assembly'
+            ];
+          } else if (isElectrical) {
+            primaryHazard = 'Electrical Switchboard Overheating & Arc Flash Explosion Hazard';
+            secondHazard = 'Energized Electrical Conductor Exposure & Thermal Plasma Ignition';
+            weakSignal = 'Detected Weak Signal: Loose Terminal Lug Resistance & Thermal Hotspot';
+            energySource = 'High-Voltage Electrical Arc & Thermal Energy (415V/11kV)';
+            barrierStatus = 'ELECTRICAL ENCLOSURE & LOTO BARRIER COMPROMISED';
+            iogpRule = 'Energy Isolation & Lockout Tagout (LSR-02)';
+            recControls = [
+              'Trip upstream circuit breaker and verify zero energy with calibrated multimeter',
+              'Apply personal Lockout/Tagout padlock and danger tag before touching enclosure',
+              'Wear NFPA 70E Category 4 Arc Flash Suit and insulated safety gloves',
+              'Thermally scan all busbars and torque loose terminals to OEM specifications'
+            ];
+            capaActions = [
+              'Implement quarterly infrared thermography survey across all MCC panels',
+              'Audit lockout/tagout adherence with field electricians on monthly rota'
+            ];
+          } else if (isHeight) {
+            primaryHazard = 'Elevated Fall from Height & Incomplete Scaffold Platform Hazard';
+            secondHazard = 'Missing Guardrails and Toe-Boards at High Elevation';
+            weakSignal = 'Detected Weak Signal: Missing Scaffold Deck Clamps & Unanchored Planks';
+            energySource = 'Gravitational Potential Energy (> 2 Meters)';
+            barrierStatus = 'PASSIVE FALL PROTECTION & GUARDRAILS MISSING';
+            iogpRule = 'Working at Height (LSR-03)';
+            recControls = [
+              'Mandate 100% tie-off with dual lanyards to certified overhead anchor points',
+              'Install top-rails, mid-rails, and toe-boards across complete working deck',
+              'Red-tag scaffold immediately and prohibit worker access until re-inspected'
+            ];
+            capaActions = [
+              'Mandate daily scaffold inspection tag sign-off by certified scaffolding supervisor',
+              'Refresher training on full-body harness pre-use checks and lanyard inspection'
+            ];
+          } else if (isLifting) {
+            primaryHazard = 'Suspended Load Failure & Rigging Failure Impact Hazard';
+            secondHazard = 'Personnel Positioned Within Crane Line of Fire';
+            weakSignal = 'Detected Weak Signal: Synthetic Sling Abrasions & Damaged Hoist Wire Strands';
+            energySource = 'Suspended Kinetic & Gravitational Heavy Load Energy';
+            barrierStatus = 'RIGGING INTEGRITY & EXCLUSION ZONE BARRIERS FAILED';
+            iogpRule = 'Safe Mechanical Lifting (LSR-04)';
+            recControls = [
+              'Clear lift path and enforce strict physical barricades under suspended load',
+              'Discard frayed slings and re-verify crane rated load chart limits',
+              'Use tag lines to guide suspended loads rather than hands-on contact'
+            ];
+            capaActions = [
+              'Mandate third-party NDT inspection on all wire ropes and shackles',
+              'Conduct pre-lift safety briefing and verify lift plan before heavy hoists'
+            ];
+          } else if (isConfined) {
+            primaryHazard = 'Confined Space Oxygen Depletion & Toxic Gas Exposure Hazard';
+            secondHazard = 'Trapped Hazardous Atmosphere in Enclosed Tank Vessel';
+            weakSignal = 'Detected Weak Signal: Premature Tank Entry Without Calibrated Gas Test';
+            energySource = 'Chemical Asphyxiant & Toxic Atmospheric Vapor';
+            barrierStatus = 'CONFINED SPACE VENTILATION & ENTRY PERMIT FAILED';
+            iogpRule = 'Confined Space Entry (LSR-08)';
+            recControls = [
+              'Continuous 4-gas atmospheric testing (O2, H2S, CO, LEL) at three vessel depths',
+              'Deploy mechanical forced-draft ventilation fan before and during entry',
+              'Station dedicated Hole Watch / Standby Person with emergency retrieval hoist'
+            ];
+            capaActions = [
+              'Calibrate all portable gas monitors and verify bump-test logs daily',
+              'Simulate confined space rescue drill with emergency response squad'
+            ];
+          } else if (isChemical) {
+            primaryHazard = 'Corrosive Toxic Chemical Spray & Containment Bund Loss';
+            secondHazard = 'Pressurized Chemical Fluid Release Towards Personnel';
+            weakSignal = 'Detected Weak Signal: Pump Mechanical Seal Weeping Acid';
+            energySource = 'Chemical Reactivity & Hydraulic Pressurized Fluid';
+            barrierStatus = 'CONTAINMENT FLANGE & CHEMICAL SHIELD DEGRADED';
+            iogpRule = 'Toxic Chemical Containment & PPE (LSR-07)';
+            recControls = [
+              'Isolate pump suction/discharge valves and relieve line pressure to drain',
+              'Wear Level B chemical suit, acid-resistant face shield, and rubber boots',
+              'Neutralize escaped chemical within containment bund and verify eyewash station'
+            ];
+            capaActions = [
+              'Replace degraded mechanical seals with corrosion-resistant elastomer components',
+              'Audit emergency safety shower water flow and alarm transmitter functionality'
+            ];
+          }
+
+          finalResult = {
+            report_name: reportName,
+            sif_precursor: 'YES',
+            confidence: 97.4,
+            risk_score: dynamicRiskScore,
+            classification: rType,
+            detected_hazards: [
+              primaryHazard,
+              secondHazard,
+              weakSignal
+            ],
+            energy_source: energySource,
+            barrier_status: barrierStatus,
+            iogp_rule: iogpRule,
+            explainable_reasoning: `Autonomous neural analysis of "${reportName}" at "${loc}" classified this scenario as a CONFIRMED SIF PRECURSOR. The industrial hazard presented credible probability of catastrophic escalation without emergency barrier controls. Immediate intervention required.`,
+            recommended_controls: recControls,
+            corrective_actions: capaActions
+          };
         }
-
-        finalResult = {
-          report_name: reportName,
-          sif_precursor: 'YES',
-          confidence: 97.4,
-          risk_score: dynamicRiskScore,
-          classification: rType,
-          detected_hazards: [
-            primaryHazard,
-            secondHazard,
-            weakSignal
-          ],
-          energy_source: energySource,
-          barrier_status: barrierStatus,
-          iogp_rule: iogpRule,
-          explainable_reasoning: `Autonomous neural analysis of "${reportName}" at "${loc}" classified this scenario as a CONFIRMED SIF PRECURSOR. The industrial hazard presented credible probability of catastrophic escalation without emergency barrier controls. Immediate intervention required.`,
-          recommended_controls: recControls,
-          corrective_actions: capaActions
-        };
       }
 
       setAnalysisResult(finalResult);
@@ -1109,8 +1123,8 @@ export default function AIAnalysisView() {
     await executeInference(textToAnalyze, typeToUse, unitToUse);
   };
 
-  const isTrivial = isTrivialInput(description);
-  const isNonSafety = isTrivial || analysisResult?.risk_score === 0 || analysisResult?.report_name?.includes('Non-Safety');
+  const isUnrelated = isUnrelatedIssue(description);
+  const isNonSafety = isUnrelated || analysisResult?.is_unrelated || analysisResult?.risk_score === 0 || analysisResult?.report_name?.includes('Non-Safety') || analysisResult?.report_name?.includes('Enter Correct Issue');
 
   const allWeakSignals = generateAllWeakSignalsAnalysis(
     totalStoredRecords,
@@ -1119,14 +1133,15 @@ export default function AIAnalysisView() {
     location
   );
 
-  // Weak signals detected in the CURRENT record (strictly empty if non-safety/test input!)
+  // Weak signals detected in the CURRENT record (strictly empty if non-safety/unrelated input!)
   const detectedWeakSignals = isNonSafety ? [] : allWeakSignals.filter(s => s.isPresentInCurrent);
 
   const openWeakSignalsModal = () => {
-    // Select first weak signal that matches present record, or fallback to first
-    const match = detectedWeakSignals[0] || allWeakSignals[0];
-    setSelectedWeakSignal(match);
-    setShowWeakSignalsModal(true);
+    const match = detectedWeakSignals[0];
+    if (match) {
+      setSelectedWeakSignal(match);
+      setShowWeakSignalsModal(true);
+    }
   };
 
   return (
@@ -1258,8 +1273,10 @@ export default function AIAnalysisView() {
                 maxLength={100}
                 value={description}
                 onChange={(e) => {
-                  setDescription(e.target.value.slice(0, 100));
+                  const val = e.target.value.slice(0, 100);
+                  setDescription(val);
                   if (validationError) setValidationError('');
+                  if (analysisResult) setAnalysisResult(null);
                 }}
                 className="w-full p-4 rounded-xl bg-[#FAF8F5] border-2 border-stone-200 text-sm sm:text-base font-semibold text-slate-900 leading-relaxed focus:outline-none focus:bg-white focus:border-[#FF5A36] focus:ring-4 focus:ring-[#FF5A36]/10 placeholder:text-slate-400 placeholder:font-normal transition-all"
                 placeholder="Describe safety incident (up to 100 characters max)..."
@@ -1306,148 +1323,208 @@ export default function AIAnalysisView() {
         {/* Right Half: Sequential SIF Report Layout or Photo Default */}
         <div className="lg:col-span-6 flex flex-col">
           {analysisResult ? (
-            /* AI SIF Analysis Result Report in Sequential Lines */
-            <div className="h-full rounded-2xl bg-white border-2 border-[#EAE6E1] p-5 sm:p-6 flex flex-col justify-between shadow-xs space-y-4 text-slate-800 animate-in fade-in duration-300">
-              <div className="space-y-4">
-                
-                {/* Section 1: Report Details, Category & SIF Determination */}
-                <div className={`rounded-2xl border-2 p-4 sm:p-5 shadow-xs ${
-                  analysisResult.sif_precursor === 'YES' 
-                    ? 'bg-rose-50/60 border-rose-200' 
-                    : 'bg-emerald-50/60 border-emerald-200'
-                }`}>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            analysisResult.is_unrelated ? (
+              /* Enter Correct Issue Card for Unrelated/Trivial Inputs */
+              <div className="h-full rounded-2xl bg-white border-2 border-amber-300 p-5 sm:p-6 flex flex-col justify-between shadow-xs space-y-4 text-slate-800 animate-in fade-in duration-300">
+                <div className="space-y-4">
+                  {/* Top Status Header */}
+                  <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/80 p-4 sm:p-5 shadow-xs">
                     <div className="flex items-start gap-3.5">
-                      {analysisResult.sif_precursor === 'YES' ? (
-                        <div className="w-13 h-13 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md animate-pulse">
-                          <ShieldAlert className="w-7 h-7" />
-                        </div>
-                      ) : (
-                        <div className="w-13 h-13 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                          <ShieldCheck className="w-7 h-7" />
-                        </div>
-                      )}
-                      <div>
-                        {/* Report Name */}
-                        <div className="text-base sm:text-lg font-black text-slate-900 font-heading leading-tight">
-                          {analysisResult.report_name}
-                        </div>
-
-                        {/* Size / Category and SIF status */}
-                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                          {/* Category / Size Badge */}
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-black font-mono tracking-wide uppercase bg-slate-800 text-white shadow-xs">
-                            SIZE: {analysisResult.classification.replace('_', ' ')}
-                          </span>
-
-                          {/* SIF Determination */}
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-lg text-xs font-black font-mono tracking-wide uppercase shadow-xs ${
-                            analysisResult.sif_precursor === 'YES'
-                              ? 'bg-rose-600 text-white'
-                              : 'bg-emerald-600 text-white'
-                          }`}>
-                            {analysisResult.sif_precursor === 'YES' ? 'CONFIRMED SIF PRECURSOR' : 'NON-SIF OBSERVATION'}
-                          </span>
-                        </div>
+                      <div className="w-13 h-13 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                        <AlertCircle className="w-7 h-7" />
                       </div>
-                    </div>
-
-                    {/* Risk Score */}
-                    <div className="flex items-center gap-3 shrink-0 bg-white/95 px-4 py-2 rounded-xl border border-stone-200 shadow-xs self-end sm:self-center">
-                      <div className="text-right">
-                        <div className="text-[10px] text-slate-400 uppercase font-mono font-bold">RISK SCORE</div>
-                        <div className={`text-xl sm:text-2xl font-black font-mono ${
-                          analysisResult.risk_score >= 80 ? 'text-rose-600' : 'text-emerald-700'
-                        }`}>
-                          {analysisResult.risk_score} <span className="text-[11px] text-slate-400 font-normal">/100</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 2: Detected Hazards */}
-                <div className="rounded-2xl border-2 border-stone-200 p-4 shadow-xs bg-white">
-                  <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-2.5">
-                    <div>
-                      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-orange-100/80 border border-orange-300 text-[#FF5A36] text-xs font-black uppercase tracking-wider font-mono shadow-xs">
-                        <Flame className="w-4 h-4 text-[#FF5A36]" />
-                        DETECTED HAZARDS &amp; UNCONFINED VECTORS
-                      </span>
-                    </div>
-                    <ul className="space-y-1.5 pt-1">
-                      {analysisResult.detected_hazards.map((hz, i) => (
-                        <li key={i} className="text-xs sm:text-sm font-bold text-slate-800 flex items-start gap-2">
-                          <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                          <span className="leading-snug">{hz}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Section 3: How to Overcome */}
-                <div className="rounded-2xl border-2 border-stone-200 p-4 shadow-xs bg-white">
-                  <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-2.5">
-                    <div>
-                      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-black uppercase tracking-wider font-mono shadow-xs">
-                        <CheckCircle className="w-4 h-4 text-emerald-600" />
-                        HOW TO OVERCOME: CRITICAL CONTROLS
-                      </span>
-                    </div>
-                    <ul className="space-y-1.5 pt-1">
-                      {analysisResult.recommended_controls.map((ctrl, i) => (
-                        <li key={i} className="text-xs sm:text-sm text-slate-800 font-semibold flex items-start gap-2">
-                          <span className="text-emerald-600 font-black mt-0.5 text-base">&bull;</span>
-                          <span className="leading-snug">{ctrl}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Action Buttons: Weak Signals Surveillance Section */}
-              <div className="pt-3 border-t border-stone-200">
-                {isNonSafety ? (
-                  <div className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2.5 text-slate-700">
-                      <span className="w-8 h-8 rounded-lg bg-slate-200/80 text-slate-500 flex items-center justify-center shrink-0">
-                        <Radio className="w-4 h-4 text-slate-400" />
-                      </span>
-                      <div>
-                        <div className="font-bold text-slate-900 text-xs uppercase tracking-wide flex items-center gap-2">
-                          <span>ZERO WEAK SIGNALS DETECTED</span>
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-200 text-slate-700 font-mono font-bold">
-                            0 PATTERNS IN TEST INPUT
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-base sm:text-xl font-black text-amber-950 font-heading leading-tight">
+                            ENTER CORRECT ISSUE
+                          </div>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-lg text-xs font-black font-mono tracking-wide uppercase bg-amber-200 text-amber-900 border border-amber-300">
+                            UNRELATED INPUT
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Non-safety / test observation does not trigger any operational precursor weak signals.
+                        <p className="text-xs sm:text-sm font-semibold text-amber-900 mt-1.5 leading-relaxed">
+                          The entered description <span className="font-mono font-black text-amber-950 px-1.5 py-0.5 bg-amber-100 rounded border border-amber-200">"{description || 'nothing'}"</span> does not contain a recognized industrial safety hazard, equipment condition, or barrier failure.
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Guidance on How to Enter a Valid Safety Observation */}
+                  <div className="rounded-2xl border-2 border-stone-200 p-4 shadow-xs bg-white space-y-3">
+                    <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-800 font-heading flex items-center gap-2">
+                      <Info className="w-4 h-4 text-[#FF5A36]" />
+                      <span>REQUIRED SAFETY OBSERVATION SPECIFICS:</span>
+                    </div>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700 font-semibold">
+                      <li className="flex items-start gap-2">
+                        <span className="text-[#FF5A36] font-black mt-0.5">&bull;</span>
+                        <span><strong>Operating Bay or Equipment:</strong> Specify unit or asset (e.g., Gas Pipeline Flange, Electrical 415V Panel, LPG Cylinder).</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-[#FF5A36] font-black mt-0.5">&bull;</span>
+                        <span><strong>Active Energy or Hazard:</strong> State the physical condition (e.g., Flammable gas hissing, cable overheating, missing scaffolding deck, welding sparks).</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-[#FF5A36] font-black mt-0.5">&bull;</span>
+                        <span><strong>Barrier Status:</strong> Mention if seals degraded, alarm triggered, or safety permits were omitted.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Quick Sample Selector */}
+                  <div className="p-4 rounded-xl bg-orange-50/80 border border-orange-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div>
+                      <div className="font-bold text-orange-950 text-xs uppercase tracking-wide">
+                        PREFER TO TEST A VERIFIED PLANT INCIDENT?
+                      </div>
+                      <p className="text-[11px] text-orange-800 mt-0.5">
+                        Quickly populate an authentic field safety report to see SIF precursor intelligence in action.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sample = AVAILABLE_UPLOADED_REPORTS[uploadedIndex % AVAILABLE_UPLOADED_REPORTS.length];
+                        setDescription(sample.text);
+                        setReportType(sample.type);
+                        setLocation(sample.location);
+                        setUploadedIndex(prev => prev + 1);
+                        setValidationError('');
+                        setAnalysisResult(null);
+                      }}
+                      className="text-xs font-black uppercase tracking-wider text-white bg-[#FF5A36] hover:bg-orange-600 px-4 py-2.5 rounded-xl shrink-0 cursor-pointer transition-all shadow-xs"
+                    >
+                      Load Sample Issue
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bottom Notice: Zero Weak Signals & NO Button */}
+                <div className="pt-3 border-t border-stone-200">
+                  <div className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2.5 text-xs text-slate-500">
+                    <Radio className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-[11px] font-semibold">
+                      Weak signal surveillance inactive &bull; No precursor patterns correlated with unrelated input.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* AI SIF Analysis Result Report in Sequential Lines */
+              <div className="h-full rounded-2xl bg-white border-2 border-[#EAE6E1] p-5 sm:p-6 flex flex-col justify-between shadow-xs space-y-4 text-slate-800 animate-in fade-in duration-300">
+                <div className="space-y-4">
+                  
+                  {/* Section 1: Report Details, Category & SIF Determination */}
+                  <div className={`rounded-2xl border-2 p-4 sm:p-5 shadow-xs ${
+                    analysisResult.sif_precursor === 'YES' 
+                      ? 'bg-rose-50/60 border-rose-200' 
+                      : 'bg-emerald-50/60 border-emerald-200'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3.5">
+                        {analysisResult.sif_precursor === 'YES' ? (
+                          <div className="w-13 h-13 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md animate-pulse">
+                            <ShieldAlert className="w-7 h-7" />
+                          </div>
+                        ) : (
+                          <div className="w-13 h-13 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                            <ShieldCheck className="w-7 h-7" />
+                          </div>
+                        )}
+                        <div>
+                          {/* Report Name */}
+                          <div className="text-base sm:text-lg font-black text-slate-900 font-heading leading-tight">
+                            {analysisResult.report_name}
+                          </div>
+
+                          {/* Size / Category and SIF status */}
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                            {/* Category / Size Badge */}
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-black font-mono tracking-wide uppercase bg-slate-800 text-white shadow-xs">
+                              SIZE: {analysisResult.classification.replace('_', ' ')}
+                            </span>
+
+                            {/* SIF Determination */}
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-lg text-xs font-black font-mono tracking-wide uppercase shadow-xs ${
+                              analysisResult.sif_precursor === 'YES'
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}>
+                              {analysisResult.sif_precursor === 'YES' ? 'CONFIRMED SIF PRECURSOR' : 'NON-SIF OBSERVATION'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Risk Score */}
+                      <div className="flex items-center gap-3 shrink-0 bg-white/95 px-4 py-2 rounded-xl border border-stone-200 shadow-xs self-end sm:self-center">
+                        <div className="text-right">
+                          <div className="text-[10px] text-slate-400 uppercase font-mono font-bold">RISK SCORE</div>
+                          <div className={`text-xl sm:text-2xl font-black font-mono ${
+                            analysisResult.risk_score >= 80 ? 'text-rose-600' : 'text-emerald-700'
+                          }`}>
+                            {analysisResult.risk_score} <span className="text-[11px] text-slate-400 font-normal">/100</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Detected Hazards */}
+                  <div className="rounded-2xl border-2 border-stone-200 p-4 shadow-xs bg-white">
+                    <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-2.5">
+                      <div>
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-orange-100/80 border border-orange-300 text-[#FF5A36] text-xs font-black uppercase tracking-wider font-mono shadow-xs">
+                          <Flame className="w-4 h-4 text-[#FF5A36]" />
+                          DETECTED HAZARDS &amp; UNCONFINED VECTORS
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5 pt-1">
+                        {analysisResult.detected_hazards.map((hz, i) => (
+                          <li key={i} className="text-xs sm:text-sm font-bold text-slate-800 flex items-start gap-2">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                            <span className="leading-snug">{hz}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Section 3: How to Overcome */}
+                  <div className="rounded-2xl border-2 border-stone-200 p-4 shadow-xs bg-white">
+                    <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-2.5">
+                      <div>
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-black uppercase tracking-wider font-mono shadow-xs">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          HOW TO OVERCOME: CRITICAL CONTROLS
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5 pt-1">
+                        {analysisResult.recommended_controls.map((ctrl, i) => (
+                          <li key={i} className="text-xs sm:text-sm text-slate-800 font-semibold flex items-start gap-2">
+                            <span className="text-emerald-600 font-black mt-0.5 text-base">&bull;</span>
+                            <span className="leading-snug">{ctrl}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Action Buttons: Weak Signals Surveillance Section */}
+                <div className="pt-3 border-t border-stone-200">
+                  {detectedWeakSignals.length > 0 ? (
                     <button
                       type="button"
                       onClick={openWeakSignalsModal}
-                      className="text-[11px] font-bold text-slate-600 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white px-3.5 py-2 rounded-xl shrink-0 cursor-pointer transition-all shadow-2xs self-end sm:self-auto hover:bg-slate-50"
+                      className="w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-orange-500 via-[#FF5A36] to-amber-500 hover:opacity-95 text-white shadow-md hover:scale-[1.005]"
                     >
-                      Browse Plant Register ({allWeakSignals.length})
+                      <Radio className="w-4 h-4 text-amber-200 animate-pulse" />
+                      <span>VIEW WEAK SIGNALS ({detectedWeakSignals.length} DETECTED IN THIS OBSERVATION)</span>
                     </button>
-                  </div>
-                ) : detectedWeakSignals.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={openWeakSignalsModal}
-                    className="w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-orange-500 via-[#FF5A36] to-amber-500 hover:opacity-95 text-white shadow-sm hover:scale-[1.005]"
-                  >
-                    <Radio className="w-4 h-4 text-amber-200 animate-pulse" />
-                    <span>VIEW WEAK SIGNALS ({detectedWeakSignals.length} DETECTED IN THIS OBSERVATION)</span>
-                  </button>
-                ) : (
-                  <div className="w-full p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2.5 text-emerald-950">
+                  ) : (
+                    <div className="w-full p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center gap-3 text-xs shadow-2xs">
                       <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-4 h-4" />
                       </span>
@@ -1463,17 +1540,10 @@ export default function AIAnalysisView() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={openWeakSignalsModal}
-                      className="text-[11px] font-bold text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white px-3.5 py-2 rounded-xl shrink-0 cursor-pointer transition-all shadow-2xs self-end sm:self-auto hover:bg-slate-50"
-                    >
-                      Browse Plant Register ({allWeakSignals.length})
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
+            )
           ) : (
             /* Photo Card on the Remaining Half when idle */
             <div className="relative h-full min-h-[480px] lg:min-h-[540px] rounded-2xl overflow-hidden border-2 border-[#EAE6E1] shadow-xs group">

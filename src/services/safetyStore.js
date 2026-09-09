@@ -227,7 +227,12 @@ export const DEFAULT_20_SAMPLE_RECORDS = [
 // Check if a report contains severe energy or SIF markers (deterministic, no random variance)
 export function evaluateSIFPrecursor(text, hazard, reportType) {
   const clean = (text || '').trim().toLowerCase();
-  const trivialGreetings = ['hi', 'hii', 'hiii', 'hello', 'hey', 'heyy', 'test', 'testing', 'asdf', 'qwerty', 'abc', 'none', 'ok', 'okay'];
+  const trivialGreetings = [
+    'hi', 'hii', 'hiii', 'hello', 'hey', 'heyy', 'test', 'testing', 'asdf', 
+    'qwerty', 'abc', 'none', 'ok', 'okay', 'nothing', 'nil', 'na', 'n/a', 
+    'not applicable', 'no issue', 'no issues', 'no hazard', 'nothing to report',
+    'all good', 'good', 'fine', 'clean', 'normal', 'blank', 'null', 'nothin'
+  ];
   
   const combined = `${text || ''} ${hazard || ''} ${reportType || ''}`.toLowerCase();
   
@@ -242,8 +247,15 @@ export function evaluateSIFPrecursor(text, hazard, reportType) {
 
   const match = highEnergyKeywords.find((kw) => combined.includes(kw));
 
-  // If trivial greeting or very short string without safety context
-  if (trivialGreetings.includes(clean) || (clean.length < 6 && !match)) {
+  // If trivial greeting, unrelated input, or very short string without safety context
+  const isTrivial = trivialGreetings.includes(clean) || 
+                    clean.startsWith('nothing') || 
+                    clean.startsWith('no issue') || 
+                    clean.startsWith('no hazard') || 
+                    clean.startsWith('all good') ||
+                    (clean.length < 6 && !match);
+
+  if (isTrivial) {
     return {
       isSIF: false,
       matchedKeyword: 'None',
