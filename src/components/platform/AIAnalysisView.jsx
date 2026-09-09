@@ -1703,26 +1703,6 @@ export default function AIAnalysisView() {
                     </button>
                   </div>
 
-                  {/* Correlated Identifying Records Breakdown (>= 2 Records Required) */}
-                  <div className="pt-3 border-t border-stone-100 space-y-2.5">
-                    <div className="flex items-center gap-2 text-[11.5px] font-bold text-slate-800 uppercase tracking-wider">
-                      <Layers className="w-4 h-4 text-[#FF5A36]" />
-                      <span>IDENTIFIED ACROSS {sig.identifyingRecords?.length || 2} RECORDS (RULE: ≥2 RECORDS):</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {(sig.identifyingRecords || []).map((rec, rIdx) => (
-                        <div key={rIdx} className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/90 text-xs space-y-1.5 shadow-2xs">
-                          <div className="flex items-center justify-between font-mono font-bold text-[11px]">
-                            <span className={rec.ref === 'Current Analyzed Record' ? 'text-[#FF5A36] font-bold' : 'text-[#FF5A36]'}>{rec.ref}</span>
-                            <span className="text-slate-500 font-normal">{rec.unit || rec.location}</span>
-                          </div>
-                          <div className="font-bold text-slate-900 line-clamp-1">{rec.name}</div>
-                          <div className="text-slate-600 text-[11px] line-clamp-2 leading-relaxed">{rec.excerpt}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                 </div>
               ))}
             </div>
