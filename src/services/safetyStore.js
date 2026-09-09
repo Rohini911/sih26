@@ -6,7 +6,7 @@ const STORAGE_PRECURSORS_KEY = 'safetyai_admin_precursors_data';
 const STORAGE_WIPED_KEY = 'safetyai_data_wiped_fresh';
 const STORAGE_WEAK_SIGNALS_KEY = 'safetyai_weak_signals_data';
 const STORAGE_RESET_VERSION_KEY = 'safetyai_reset_version';
-const CURRENT_RESET_VERSION = 'v5_clean_slate_all_cleared';
+const CURRENT_RESET_VERSION = 'v9_clean_slate_all_data_removed';
 
 // Perform clean slate reset on load if not on current reset version
 try {
