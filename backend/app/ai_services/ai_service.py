@@ -8,6 +8,7 @@ from .energy_exposure_analysis import analyze_energy_and_exposure
 from .barrier_analysis import analyze_barriers
 from .sif_assessment import assess_sif_precursor
 from .explanation_generator import generate_explanation
+from .life_saving_rules import map_life_saving_rules
 
 def analyze_safety_report(
     report_type: str,
@@ -76,6 +77,9 @@ def analyze_safety_report(
         report_type=report_type
     )
 
+    # 8. Life-Saving Rules Evaluation (All 9 IOGP Rules)
+    lsr_match = map_life_saving_rules(cleaned_text)
+
     # Structured Output (fields allow None when not identified)
     return {
         "analysis_context": cat_context["description"],
@@ -89,5 +93,6 @@ def analyze_safety_report(
         "barrier_information": barrier_eval.get("status"),
         "potential_consequence": sif_result.get("potential_consequence"),
         "sif_precursor_assessment": sif_result["assessment"],
+        "life_saving_rule": lsr_match,
         "explanation": explanation
     }

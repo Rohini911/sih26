@@ -98,6 +98,18 @@ LSR_DEFINITIONS = {
             "Designated marshaller during reversing in confined yard areas"
         ],
         "category": "Kinetic Energy"
+    },
+    "WORK_AUTHORIZATION": {
+        "code": "LSR-09",
+        "name": "Work Authorization (PTW)",
+        "tagline": "Work with a valid work permit when required",
+        "keywords": [r'\bpermit\b', r'\bptw\b', r'\bwork permit\b', r'\bauthoriz\w+', r'\bjha\b', r'\btbt\b', r'\btoolbox\b', r'\brisk assessment\b', r'\bmethod statement\b', r'\bunauthorized\b'],
+        "mandatory_controls": [
+            "Valid, signed Permit-to-Work (PTW) displayed at job site",
+            "Job Hazard Analysis (JHA) briefed to all workers during pre-task briefing (TBT)",
+            "Stop-work authority re-briefed if job scope or environmental conditions change"
+        ],
+        "category": "Administrative Governance"
     }
 }
 
