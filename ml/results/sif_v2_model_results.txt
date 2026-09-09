@@ -1,0 +1,125 @@
+================================================================================
+ SIF DATASET V2 MACHINE LEARNING MODEL EVALUATION REPORT
+================================================================================
+Data Source:            C:\Users\Rohini\OneDrive\Documents\sih26\ml\data\sif_dataset_v2.csv
+Total Records:          15,000
+Train Split:            12,000 (80.0%, Stratified)
+Test Split:             3,000 (20.0%, Stratified)
+Random State:           42
+Structured Features:    report_type, location, activity, barrier_failure, observed_severity, life_saving_rule
+Text Feature:           report_text
+
+--------------------------------------------------------------------------------
+MODEL: Structured Logistic Regression
+Saved Artifact: C:\Users\Rohini\OneDrive\Documents\sih26\ml\models\sif_v2_structured_logistic_regression.joblib
+--------------------------------------------------------------------------------
+Test Set Performance:
+  Accuracy:             0.6957 (69.57%)
+  Weighted Precision:   0.6957
+  Weighted Recall:      0.6957
+  Weighted F1-Score:    0.6956
+SIF-potential Specific Focus:
+  Precision:            0.6920
+  Recall:               0.7053
+  F1-Score:             0.6986
+Overfitting Cross-Check (Train vs Test):
+  Train Accuracy:       0.6866  |  Test Accuracy:    0.6957  (Gap: -0.91%)
+  Train Weighted F1:    0.6866  |  Test Weighted F1: 0.6956  (Gap: -0.91%)
+  [HEALTHY] Model generalizes consistently between train and test splits.
+Confusion Matrix (rows: actual, cols: predicted):
+  Labels: ['SIF-potential', 'Non-SIF-potential']
+  [[ 1058 (TP: SIF),       442 (FN: SIF->Non)]
+   [  471 (FP: Non->SIF),  1029 (TN: Non)]]
+Classification Report:
+                   precision    recall  f1-score   support
+
+Non-SIF-potential     0.6995    0.6860    0.6927      1500
+    SIF-potential     0.6920    0.7053    0.6986      1500
+
+         accuracy                         0.6957      3000
+        macro avg     0.6957    0.6957    0.6956      3000
+     weighted avg     0.6957    0.6957    0.6956      3000
+
+
+--------------------------------------------------------------------------------
+MODEL: Structured Random Forest
+Saved Artifact: C:\Users\Rohini\OneDrive\Documents\sih26\ml\models\sif_v2_structured_random_forest.joblib
+--------------------------------------------------------------------------------
+Test Set Performance:
+  Accuracy:             0.6707 (67.07%)
+  Weighted Precision:   0.6707
+  Weighted Recall:      0.6707
+  Weighted F1-Score:    0.6706
+SIF-potential Specific Focus:
+  Precision:            0.6737
+  Recall:               0.6620
+  F1-Score:             0.6678
+Overfitting Cross-Check (Train vs Test):
+  Train Accuracy:       0.9976  |  Test Accuracy:    0.6707  (Gap: +32.69%)
+  Train Weighted F1:    0.9976  |  Test Weighted F1: 0.6706  (Gap: +32.69%)
+  [OVERFITTING WARNING] Training score is noticeably higher than test score by 32.7% accuracy.
+Confusion Matrix (rows: actual, cols: predicted):
+  Labels: ['SIF-potential', 'Non-SIF-potential']
+  [[  993 (TP: SIF),       507 (FN: SIF->Non)]
+   [  481 (FP: Non->SIF),  1019 (TN: Non)]]
+Classification Report:
+                   precision    recall  f1-score   support
+
+Non-SIF-potential     0.6678    0.6793    0.6735      1500
+    SIF-potential     0.6737    0.6620    0.6678      1500
+
+         accuracy                         0.6707      3000
+        macro avg     0.6707    0.6707    0.6706      3000
+     weighted avg     0.6707    0.6707    0.6706      3000
+
+
+--------------------------------------------------------------------------------
+MODEL: NLP Text TF-IDF + Logistic Regression
+Saved Artifact: C:\Users\Rohini\OneDrive\Documents\sih26\ml\models\sif_v2_text_tfidf_logistic_regression.joblib
+--------------------------------------------------------------------------------
+Test Set Performance:
+  Accuracy:             0.7987 (79.87%)
+  Weighted Precision:   0.7987
+  Weighted Recall:      0.7987
+  Weighted F1-Score:    0.7987
+SIF-potential Specific Focus:
+  Precision:            0.7983
+  Recall:               0.7993
+  F1-Score:             0.7988
+Overfitting Cross-Check (Train vs Test):
+  Train Accuracy:       0.8103  |  Test Accuracy:    0.7987  (Gap: +1.17%)
+  Train Weighted F1:    0.8103  |  Test Weighted F1: 0.7987  (Gap: +1.17%)
+  [HEALTHY] Model generalizes consistently between train and test splits.
+Confusion Matrix (rows: actual, cols: predicted):
+  Labels: ['SIF-potential', 'Non-SIF-potential']
+  [[ 1199 (TP: SIF),       301 (FN: SIF->Non)]
+   [  303 (FP: Non->SIF),  1197 (TN: Non)]]
+Classification Report:
+                   precision    recall  f1-score   support
+
+Non-SIF-potential     0.7991    0.7980    0.7985      1500
+    SIF-potential     0.7983    0.7993    0.7988      1500
+
+         accuracy                         0.7987      3000
+        macro avg     0.7987    0.7987    0.7987      3000
+     weighted avg     0.7987    0.7987    0.7987      3000
+
+
+================================================================================
+MODEL SELECTION DECISION
+================================================================================
+Selected Best Model:    NLP Text TF-IDF + Logistic Regression
+Best Weighted F1:       0.7987
+SIF-potential Recall:   0.7993 (79.93%)
+Model Artifact File:    C:\Users\Rohini\OneDrive\Documents\sih26\ml\models\sif_v2_text_tfidf_logistic_regression.joblib
+Selection Rationale:    Selected primarily on Weighted F1-score (harmonic mean across
+                        both classes) and high recall on the critical SIF-potential class,
+                        which is paramount for minimizing undetected severe hazards.
+
+================================================================================
+IMPORTANT SAFETY DATA DISCLAIMER
+================================================================================
+Model performance is measured on synthetic V2 data and does not represent
+validated real-world safety performance.
+Do not claim that the model is production-ready or perfectly accurate.
+================================================================================
