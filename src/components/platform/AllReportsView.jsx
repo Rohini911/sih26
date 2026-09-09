@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -13,186 +13,66 @@ import {
   Eye,
   AlertTriangle,
   Calendar,
-  X
+  X,
+  ArrowRight,
+  UploadCloud,
+  Building2
 } from 'lucide-react';
 import FullAnalysisModal from './FullAnalysisModal';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
 
-export default function AllReportsView() {
+export default function AllReportsView({ onNavigate }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [siteFilter, setSiteFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedReport, setSelectedReport] = useState(null);
+  const [reports, setReports] = useState([]);
 
-  // 10 Comprehensive Oil & Gas safety reports
-  const initialReports = [
-    {
-      id: 1,
-      report_reference: 'REP-ID001-0001',
-      report_type: 'Near Miss',
-      description: 'Crane hoisting 4-inch heavy flange at 18m elevation. Rigging wire slipped and dropped flange 2m away from roughnecks. Exclusion zone barricades missing.',
-      location: 'Plant 03',
-      facility_unit: 'Drilling Rig 04 Derrick Floor',
-      report_date: '2026-09-06',
-      risk_level: 'Critical',
-      sif_precursor_assessment: 'YES',
-      ai_score: 94,
-      status: 'Action Required',
-      identified_hazard: 'Suspended Load & Dropped Object Hazard',
-      energy_source: 'Gravity (18m elevation drop potential energy)',
-      barrier_status: 'CRITICAL BARRIER FAILED',
-      recommended_action: 'Erect physical drop-zone barricade and re-certify rigging slings.'
-    },
-    {
-      id: 2,
-      report_reference: 'REP-ID001-0002',
-      report_type: 'Unsafe Act',
-      description: 'Maintenance tech entered 11kV substation switchgear room without conducting Lock-Out/Tag-Out (LOTO) or verifying zero-energy state.',
-      location: 'Plant 01',
-      facility_unit: 'Main Substation A',
-      report_date: '2026-09-06',
-      risk_level: 'Critical',
-      sif_precursor_assessment: 'YES',
-      ai_score: 91,
-      status: 'Under Investigation',
-      identified_hazard: 'Electrical Arc Flash & Shock Hazard',
-      energy_source: 'Electrical Energy (11kV Live Switchgear)',
-      barrier_status: 'BARRIER MISSING',
-      recommended_action: 'Immediate stop-work; enforce strict Lock-Out/Tag-Out (LOTO).'
-    },
-    {
-      id: 3,
-      report_reference: 'REP-ID001-0003',
-      report_type: 'Unsafe Condition',
-      description: 'Missing grating section (1.5m x 0.8m) on high elevation walkway above hydrocarbon separation vessel. Void left unbarricaded.',
-      location: 'Plant 02',
-      facility_unit: 'Separation Unit Level 3 Walkway',
-      report_date: '2026-09-06',
-      risk_level: 'High',
-      sif_precursor_assessment: 'YES',
-      ai_score: 86,
-      status: 'Action Required',
-      identified_hazard: 'Fall from Height Hazard',
-      energy_source: 'Gravity (8.5m elevation void)',
-      barrier_status: 'BARRIER MISSING',
-      recommended_action: 'Install heavy steel grating and rigid guardrails immediately.'
-    },
-    {
-      id: 4,
-      report_reference: 'REP-ID001-0004',
-      report_type: 'Unsafe Act',
-      description: 'Forklift operator driving with elevated 1.2-ton pallet into blind logistics corridor without sounding horn; pedestrian stepped back just in time.',
-      location: 'Plant 04',
-      facility_unit: 'Central Logistics Yard',
-      report_date: '2026-09-05',
-      risk_level: 'High',
-      sif_precursor_assessment: 'YES',
-      ai_score: 82,
-      status: 'Verified',
-      identified_hazard: 'Vehicle-Pedestrian Interaction',
-      energy_source: 'Kinetic Dynamic Mass',
-      barrier_status: 'BARRIER DEFICIENT',
-      recommended_action: 'Install convex mirrors and pedestrian barrier gates.'
-    },
-    {
-      id: 5,
-      report_reference: 'REP-ID001-0005',
-      report_type: 'Near Miss',
-      description: 'Nitrogen purge line disconnected during reactor depressurization at 6 bar residual pressure. Whipping hose struck guardrail.',
-      location: 'Plant 05',
-      facility_unit: 'Reformer Unit Bay 2',
-      report_date: '2026-09-05',
-      risk_level: 'Critical',
-      sif_precursor_assessment: 'YES',
-      ai_score: 89,
-      status: 'Under Investigation',
-      identified_hazard: 'Pneumatic Pressure Energy Release',
-      energy_source: 'Compressed Gas Energy',
-      barrier_status: 'BARRIER FAILED',
-      recommended_action: 'Install whip-checks and enforce zero-energy bleed procedure.'
-    },
-    {
-      id: 6,
-      report_reference: 'REP-ID001-0006',
-      report_type: 'Unsafe Condition',
-      description: 'Oxygen deficiency monitor in condensate pump sump was out of calibration by 14 months with no daily bump test log.',
-      location: 'Plant 03',
-      facility_unit: 'Condensate Sump Pit',
-      report_date: '2026-09-04',
-      risk_level: 'Critical',
-      sif_precursor_assessment: 'YES',
-      ai_score: 93,
-      status: 'Action Required',
-      identified_hazard: 'Confined Space / Asphyxiation Hazard',
-      energy_source: 'Toxic / Asphyxiant Atmosphere',
-      barrier_status: 'CRITICAL BARRIER DEGRADED',
-      recommended_action: 'Recalibrate gas detectors and halt confined space entry permits.'
-    },
-    {
-      id: 7,
-      report_reference: 'REP-ID001-0007',
-      report_type: 'Safety Observation',
-      description: 'Scaffolding toe-board dislodged on pipe rack Level 2; potential dropped object path over secondary pump bay.',
-      location: 'Plant 01',
-      facility_unit: 'Process Unit Pipe Rack',
-      report_date: '2026-09-04',
-      risk_level: 'Medium',
-      sif_precursor_assessment: 'NO',
-      ai_score: 54,
-      status: 'Verified',
-      identified_hazard: 'Dropped Hand Tool Hazard',
-      energy_source: 'Minor Gravity Potential',
-      barrier_status: 'BARRIER DEFICIENT',
-      recommended_action: 'Fasten toe-board clamp and inspect scaffolding tag.'
-    },
-    {
-      id: 8,
-      report_reference: 'REP-ID001-0008',
-      report_type: 'Safety Observation',
-      description: 'Chemical drip tray under lube oil drum found with 1 liter oil accumulation; secondary containment valve closed properly.',
-      location: 'Plant 02',
-      facility_unit: 'Compressor House Bay A',
-      report_date: '2026-09-03',
-      risk_level: 'Low',
-      sif_precursor_assessment: 'NO',
-      ai_score: 24,
-      status: 'Verified',
-      identified_hazard: 'Environmental Housekeeping Defect',
-      energy_source: 'Chemical Spillage',
-      barrier_status: 'BARRIER FUNCTIONAL',
-      recommended_action: 'Drain drip tray and replace drum tap gasket.'
+  useEffect(() => {
+    const storeState = getStoreState();
+    if (storeState.isWiped) {
+      setReports([]);
+    } else if (storeState.reports && storeState.reports.length > 0) {
+      setReports(storeState.reports);
+    } else {
+      setReports([]);
     }
-  ];
 
-  const filteredReports = initialReports.filter((r) => {
-    // Search
+    const unsub = subscribeSafetyStore((newState) => {
+      if (newState.isWiped) {
+        setReports([]);
+      } else if (newState.reports) {
+        setReports(newState.reports);
+      }
+    });
+
+    return unsub;
+  }, []);
+
+  const filteredReports = reports.filter((r) => {
+    // Search Term
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      const match = r.report_reference.toLowerCase().includes(q) ||
-                    r.description.toLowerCase().includes(q) ||
-                    r.location.toLowerCase().includes(q) ||
-                    r.identified_hazard.toLowerCase().includes(q);
+      const match = (r.report_reference || '').toLowerCase().includes(q) ||
+                    (r.description || '').toLowerCase().includes(q) ||
+                    (r.location || '').toLowerCase().includes(q) ||
+                    (r.identified_hazard || '').toLowerCase().includes(q);
       if (!match) return false;
     }
 
     // Risk Filter
-    if (riskFilter !== 'ALL' && r.risk_level.toLowerCase() !== riskFilter.toLowerCase()) {
+    if (riskFilter !== 'ALL' && (r.risk_level || '').toLowerCase() !== riskFilter.toLowerCase()) {
       return false;
     }
 
     // Type Filter
-    if (typeFilter !== 'ALL' && r.report_type.toLowerCase() !== typeFilter.toLowerCase()) {
+    if (typeFilter !== 'ALL' && (r.report_type || '').toLowerCase() !== typeFilter.toLowerCase()) {
       return false;
     }
 
     // Site Filter
-    if (siteFilter !== 'ALL' && r.location.toLowerCase() !== siteFilter.toLowerCase()) {
-      return false;
-    }
-
-    // Status Filter
-    if (statusFilter !== 'ALL' && r.status.toLowerCase() !== statusFilter.toLowerCase()) {
+    if (siteFilter !== 'ALL' && !(r.location || '').toLowerCase().includes(siteFilter.toLowerCase())) {
       return false;
     }
 
@@ -200,33 +80,33 @@ export default function AllReportsView() {
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-100 animate-in fade-in duration-200">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-800 animate-in fade-in duration-200">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-stone-200/80">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <div className="p-2 rounded-xl bg-orange-50 border border-orange-200/60 text-[#FF5A36]">
               <FileText className="w-5 h-5" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold font-heading text-white tracking-tight">
-              Safety Observation & Incident Records
+            <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
+              Safety Observation &amp; Incident Records
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Enterprise database of audited field reports with neural energy vector ratings and precursor status
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-slate-400 font-medium">
-            Showing <strong className="text-amber-400">{filteredReports.length}</strong> of {initialReports.length} records
+          <span className="text-xs font-mono text-slate-500 font-medium">
+            Showing <strong className="text-[#FF5A36]">{filteredReports.length}</strong> of {reports.length} records
           </span>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-5 shadow-xl space-y-4">
+      <div className="rounded-2xl bg-white border border-[#EAE6E1] p-5 shadow-sm space-y-4 text-slate-800">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
           
           {/* Search Input */}
@@ -237,63 +117,49 @@ export default function AllReportsView() {
               placeholder="Search by Report ID, description, hazard, or plant unit..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#FBF9F6] border border-stone-200 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#FF5A36] transition-all"
             />
           </div>
 
-          {/* Quick Filters */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2.5">
             
-            {/* Risk Filter */}
+            {/* Risk Level */}
             <select
               value={riskFilter}
               onChange={(e) => setRiskFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500"
+              className="px-3 py-2.5 rounded-xl bg-[#FBF9F6] border border-stone-200 text-xs font-medium text-slate-700 focus:outline-none focus:bg-white focus:border-[#FF5A36] transition-all"
             >
               <option value="ALL">All Risk Levels</option>
-              <option value="Critical">Critical Risk</option>
-              <option value="High">High Risk</option>
-              <option value="Medium">Medium Risk</option>
-              <option value="Low">Low Risk</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
 
-            {/* Type Filter */}
+            {/* Report Type */}
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500"
+              className="px-3 py-2.5 rounded-xl bg-[#FBF9F6] border border-stone-200 text-xs font-medium text-slate-700 focus:outline-none focus:bg-white focus:border-[#FF5A36] transition-all"
             >
-              <option value="ALL">All Event Types</option>
+              <option value="ALL">All Report Types</option>
               <option value="Near Miss">Near Miss</option>
               <option value="Unsafe Act">Unsafe Act</option>
               <option value="Unsafe Condition">Unsafe Condition</option>
-              <option value="Safety Observation">Safety Observation</option>
             </select>
 
             {/* Site Filter */}
             <select
               value={siteFilter}
               onChange={(e) => setSiteFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500"
+              className="px-3 py-2.5 rounded-xl bg-[#FBF9F6] border border-stone-200 text-xs font-medium text-slate-700 focus:outline-none focus:bg-white focus:border-[#FF5A36] transition-all"
             >
-              <option value="ALL">All Sites</option>
-              <option value="Plant 01">Plant 01</option>
-              <option value="Plant 02">Plant 02</option>
-              <option value="Plant 03">Plant 03</option>
-              <option value="Plant 04">Plant 04</option>
-              <option value="Plant 05">Plant 05</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Action Required">Action Required</option>
-              <option value="Under Investigation">Under Investigation</option>
-              <option value="Verified">Verified</option>
+              <option value="ALL">All Units</option>
+              <option value="Unit 1">Unit 1</option>
+              <option value="Unit 2">Unit 2</option>
+              <option value="Unit 3">Unit 3</option>
+              <option value="Unit 4">Unit 4</option>
             </select>
 
           </div>
@@ -301,102 +167,86 @@ export default function AllReportsView() {
         </div>
       </div>
 
-      {/* Reports Table */}
-      <div className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 p-6 shadow-xl space-y-4">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                <th className="py-3 px-3">Report ID</th>
-                <th className="py-3 px-3">Report Summary</th>
-                <th className="py-3 px-3">Type</th>
-                <th className="py-3 px-3">Location</th>
-                <th className="py-3 px-3">Risk Level</th>
-                <th className="py-3 px-3">AI Score</th>
-                <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-3">Date</th>
-                <th className="py-3 px-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {filteredReports.map((report) => (
-                <tr 
-                  key={report.id} 
-                  className="hover:bg-slate-900/50 transition-colors group cursor-pointer"
-                  onClick={() => setSelectedReport(report)}
-                >
-                  <td className="py-3.5 px-3 font-mono font-bold text-amber-400 whitespace-nowrap">
+      {/* Reports Card List in Exact Weak Signals Manner */}
+      <div className="space-y-4">
+        {reports.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border-2 border-dashed border-stone-200 text-xs text-slate-500 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF5A36] flex items-center justify-center mx-auto border border-orange-200">
+              <UploadCloud className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-slate-800 text-base">No Safety Reports Logged Yet</p>
+            <p className="text-slate-500 max-w-md mx-auto text-xs">
+              Existing static data has been cleared. Ingest your safety register via <strong>Bulk Upload</strong> to start analyzing reports starting from today.
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigate && onNavigate('/bulk-upload')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FF5A36] hover:bg-[#e64a27] text-white text-xs font-bold shadow-md cursor-pointer transition-all"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Go to Bulk Safety Ingestion</span>
+            </button>
+          </div>
+        ) : filteredReports.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border border-[#EAE6E1] text-xs text-slate-500 space-y-2">
+            <p className="font-semibold text-slate-700 text-sm">No safety reports found matching the selected filters.</p>
+            <p className="text-slate-400">Try adjusting your search query or reset filter dropdowns.</p>
+          </div>
+        ) : (
+          filteredReports.map((report) => (
+            <div 
+              key={report.id || report.report_reference}
+              className="rounded-2xl bg-white border border-[#EAE6E1] hover:border-orange-300 p-6 shadow-sm space-y-4 transition-all duration-300 text-slate-800"
+            >
+              {/* Header Badges */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg">
                     {report.report_reference}
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-200 max-w-xs truncate">
-                    {report.description}
-                  </td>
-                  <td className="py-3.5 px-3 whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium">
-                      {report.report_type}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-300 whitespace-nowrap">
+                  </span>
+                  <span className="text-xs font-bold text-slate-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-amber-600" />
                     {report.location}
-                  </td>
-                  <td className="py-3.5 px-3 whitespace-nowrap">
-                    {report.risk_level === 'Critical' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                        Critical
-                      </span>
-                    )}
-                    {report.risk_level === 'High' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                        High
-                      </span>
-                    )}
-                    {report.risk_level === 'Medium' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/40">
-                        Medium
-                      </span>
-                    )}
-                    {report.risk_level === 'Low' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700">
-                        Low
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-3 font-mono font-bold whitespace-nowrap">
-                    <span className={report.ai_score >= 80 ? 'text-rose-400' : 'text-emerald-400'}>
-                      {report.ai_score}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3 whitespace-nowrap">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                      report.status === 'Action Required' 
-                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
-                        : report.status === 'Under Investigation'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    }`}>
-                      {report.status}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                  </span>
+                  <span className="text-xs font-medium text-slate-500 bg-stone-50 border border-stone-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-slate-400" />
                     {report.report_date}
-                  </td>
-                  <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedReport(report);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-300 font-bold transition-all text-[11px] cursor-pointer"
-                    >
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                  {report.sif_precursor_assessment === 'YES' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
+                      SIF Precursor ({report.ai_score || 94}%)
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Routine Observation ({report.ai_score || 35}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Headline & Action */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  {report.identified_hazard || report.report_reference}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReport(report)}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#ff5934] hover:to-[#e64a27] text-white font-bold text-xs shadow-md shadow-orange-500/20 shrink-0 cursor-pointer flex items-center gap-1.5 transition-all self-start sm:self-auto"
+                >
+                  <span>View Details</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Description */}
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {report.description}
+              </p>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Detailed Analysis Modal */}

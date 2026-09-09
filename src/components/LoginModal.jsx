@@ -11,25 +11,52 @@ import {
   Building2,
   Lock,
   Mail,
-  Info
+  Info,
+  User,
+  UserCheck,
+  KeyRound,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const PRESET_ACCOUNTS = [
-  { orgId: 'id001', email: 'admin1@gmail.com', password: 'Admin1@123', orgName: 'Oil India Limited' },
-  { orgId: 'id002', email: 'admin2@gmail.com', password: 'Admin2@123', orgName: 'Offshore Rig Operations' },
-  { orgId: 'id003', email: 'admin3@gmail.com', password: 'Admin3@123', orgName: 'Refinery Processing Center' },
-  { orgId: 'id004', email: 'admin4@gmail.com', password: 'Admin4@123', orgName: 'Exploration & Production' },
-  { orgId: 'id005', email: 'admin5@gmail.com', password: 'Admin5@123', orgName: 'Gas Transmission' },
-];
+// Preset credentials for both Administrator and Normal User
+const PRESET_ACCOUNTS = {
+  admin: {
+    key: 'admin',
+    roleLabel: 'Administrator',
+    title: 'Chief HSE Administrator',
+    badge: 'Full Admin Privileges',
+    email: 'admin1@gmail.com',
+    password: 'Admin1@123',
+    orgId: 'id001',
+    orgName: 'Oil India Limited – Operational Safety Unit',
+    accessSummary: 'Full administrative control, batch AI ingestion, audit logs, and system configuration.',
+    accentColor: 'amber'
+  },
+  normal: {
+    key: 'normal',
+    roleLabel: 'Normal User',
+    title: 'Field Safety Operator',
+    badge: 'Standard Operations',
+    email: 'user1@gmail.com',
+    password: 'User1@123',
+    orgId: 'id001',
+    orgName: 'Oil India Limited – Field Operations',
+    accessSummary: 'Plant safety monitoring, incident submission, precursor telemetry, and signal review.',
+    accentColor: 'sky'
+  }
+};
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const { login } = useAuth();
   
-  // Organization ID or Email field
-  const [identifier, setIdentifier] = useState(() => {
-    return localStorage.getItem('safetyai_remembered_id') || 'id001';
-  });
+  // Active role tab: 'admin' or 'normal'
+  const [activeRole, setActiveRole] = useState('admin');
+  
+  // Form fields
+  const [orgId, setOrgId] = useState('id001');
+  const [email, setEmail] = useState('admin1@gmail.com');
   const [password, setPassword] = useState('Admin1@123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
@@ -40,7 +67,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [forgotPasswordNotice, setForgotPasswordNotice] = useState(false);
 
-  // Clear messages whenever modal opens
+  // Clear messages & sync fields whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setErrorMessage('');
@@ -49,63 +76,45 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  const handleSelectPreset = (account) => {
-    setIdentifier(account.orgId);
-    setPassword(account.password);
+  // Switch role handler: autofills matching credentials
+  const handleSelectRole = (roleKey) => {
+    setActiveRole(roleKey);
+    const target = PRESET_ACCOUNTS[roleKey];
+    setOrgId(target.orgId);
+    setEmail(target.email);
+    setPassword(target.password);
     setErrorMessage('');
     setForgotPasswordNotice(false);
   };
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setForgotPasswordNotice(false);
 
-    const cleanInput = identifier.trim();
+    const cleanOrg = orgId.trim() || 'id001';
+    const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
-    if (!cleanInput || !cleanPassword) {
-      setErrorMessage('Please enter your Organization ID or Email and Password.');
+    if (!cleanEmail || !cleanPassword) {
+      setErrorMessage('Please enter both Email and Password.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Determine orgId and email from input
-      let finalOrgId = cleanInput;
-      let finalEmail = cleanInput;
-
-      // Check against preset demo accounts
-      const matchedAccount = PRESET_ACCOUNTS.find(
-        acc => acc.orgId.toLowerCase() === cleanInput.toLowerCase() || acc.email.toLowerCase() === cleanInput.toLowerCase()
-      );
-
-      if (matchedAccount) {
-        finalOrgId = matchedAccount.orgId;
-        finalEmail = matchedAccount.email;
-      } else if (cleanInput.includes('@')) {
-        finalEmail = cleanInput;
-        // Infer or keep org_id
-        finalOrgId = cleanInput.startsWith('admin') 
-          ? `id00${cleanInput.replace(/[^0-9]/g, '') || '1'}` 
-          : 'id001';
-      } else {
-        finalOrgId = cleanInput;
-        finalEmail = `admin${cleanInput.replace(/[^0-9]/g, '') || '1'}@gmail.com`;
-      }
-
       // Execute login via AuthContext / Backend API
-      await login(finalOrgId, finalEmail, cleanPassword);
+      await login(cleanOrg, cleanEmail, cleanPassword);
 
       // Handle Remember Me preference
       if (rememberMe) {
-        localStorage.setItem('safetyai_remembered_id', cleanInput);
+        localStorage.setItem('safetyai_remembered_role', activeRole);
         localStorage.setItem('safetyai_remember_me', 'true');
       } else {
-        localStorage.removeItem('safetyai_remembered_id');
+        localStorage.removeItem('safetyai_remembered_role');
         localStorage.setItem('safetyai_remember_me', 'false');
       }
 
@@ -129,7 +138,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
     <div className="fixed inset-0 z-50 bg-white dark:bg-[#09090b] overflow-y-auto lg:overflow-hidden animate-in fade-in duration-300 flex flex-col lg:flex-row select-none">
       
       {/* ================= LEFT HALF: BRIGHT CLEAR IMAGE WITH ACCESSIBLE BADGE ================= */}
-      <div className="relative w-full lg:w-1/2 min-h-[380px] lg:min-h-screen bg-[#09090b] overflow-hidden flex flex-col justify-between p-6 sm:p-10 lg:p-14">
+      <div className="relative w-full lg:w-1/2 min-h-[360px] lg:min-h-screen bg-[#09090b] overflow-hidden flex flex-col justify-between p-6 sm:p-10 lg:p-14">
         
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
@@ -138,7 +147,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
             alt="Safety First Petroleum Engineer"
             className="w-full h-full object-cover object-center transform scale-100 filter brightness-100 contrast-100"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10 z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20 z-10" />
         </div>
 
         {/* Top Left: Logo Badge */}
@@ -158,25 +167,51 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
           </button>
         </div>
 
-        {/* Bottom Left: Headline and Subtitle */}
-        <div className="relative z-20 space-y-3 max-w-lg mt-auto pt-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 backdrop-blur-sm">
-            <span>Enterprise Control Room</span>
+        {/* Bottom Left: Headline and Role Capabilities Summary */}
+        <div className="relative z-20 space-y-3.5 max-w-lg mt-auto pt-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 backdrop-blur-sm">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Dual Role Enterprise Authentication</span>
           </div>
+
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-white tracking-tight leading-tight drop-shadow-md">
             Organization Safety Portal
           </h2>
+
           <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-medium drop-shadow-sm">
-            Secure authentication required to access SIF Sentinel precursor intelligence and plant telemetry.
+            Authenticate as an <strong className="text-amber-300">Administrator</strong> for full audit controls or as a <strong className="text-sky-300">Normal User</strong> for field operations and incident reporting.
           </p>
+
+          {/* Role pill indicators */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="p-3 rounded-xl bg-black/40 backdrop-blur-md border border-amber-500/30 text-left">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin Privileges</span>
+              </div>
+              <div className="text-[11px] text-slate-300 mt-1 leading-snug">
+                Full Audits, Reset Controls, AI Batch Ingestion & Calibrations
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/40 backdrop-blur-md border border-sky-500/30 text-left">
+              <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs">
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Normal User Access</span>
+              </div>
+              <div className="text-[11px] text-slate-300 mt-1 leading-snug">
+                Field Observations, Incident Reports, Telemetry & Precursor Review
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
 
       {/* ================= RIGHT HALF: AUTHENTICATION FORM ================= */}
-      <div className="w-full lg:w-1/2 min-h-screen bg-white dark:bg-[#09090b] flex flex-col justify-between p-6 sm:p-12 lg:p-16 relative overflow-y-auto">
+      <div className="w-full lg:w-1/2 min-h-screen bg-white dark:bg-[#09090b] flex flex-col justify-between p-6 sm:p-10 lg:p-14 relative overflow-y-auto">
         
-        <div className="max-w-md w-full mx-auto my-auto space-y-6">
+        <div className="max-w-md w-full mx-auto my-auto space-y-5">
           
           {/* Back to Website Link */}
           <div>
@@ -190,18 +225,107 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
           </div>
 
           {/* Form Header */}
-          <div className="space-y-1.5 pt-1">
-            <h1 className="text-3xl sm:text-4xl font-bold font-heading text-slate-950 dark:text-white tracking-tight">
-              Organization Login
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold font-heading text-slate-950 dark:text-white tracking-tight">
+              Sign In to SafetyAI
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-              Authenticate with your enterprise credentials to enter the dashboard.
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+              Select your role or enter your enterprise credentials below.
             </p>
           </div>
 
-          {/* Error Message Alert (Clear error display) */}
+          {/* ================= 1-CLICK ROLE SELECTOR TABS ================= */}
+          <div className="space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Select Login Role
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Administrator Role Card */}
+              <button
+                type="button"
+                onClick={() => handleSelectRole('admin')}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeRole === 'admin'
+                    ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-2 ring-amber-500/20 shadow-md shadow-amber-500/10'
+                    : 'bg-slate-50 dark:bg-[#141418] border-slate-200 dark:border-[#27272e] hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                      activeRole === 'admin'
+                        ? 'bg-amber-500 text-slate-950 font-bold'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}>
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Admin User</span>
+                  </div>
+                  {activeRole === 'admin' && (
+                    <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                  Chief HSE Admin
+                </div>
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-mono font-semibold mt-1">
+                  admin1@gmail.com
+                </div>
+              </button>
+
+              {/* Normal User Role Card */}
+              <button
+                type="button"
+                onClick={() => handleSelectRole('normal')}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeRole === 'normal'
+                    ? 'bg-sky-500/10 dark:bg-sky-500/15 border-sky-500 ring-2 ring-sky-500/20 shadow-md shadow-sky-500/10'
+                    : 'bg-slate-50 dark:bg-[#141418] border-slate-200 dark:border-[#27272e] hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                      activeRole === 'normal'
+                        ? 'bg-sky-500 text-white font-bold'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}>
+                      <User className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Normal User</span>
+                  </div>
+                  {activeRole === 'normal' && (
+                    <span className="w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                  Field Safety Operator
+                </div>
+                <div className="text-[10px] text-sky-600 dark:text-sky-400 font-mono font-semibold mt-1">
+                  user1@gmail.com
+                </div>
+              </button>
+            </div>
+
+            {/* Active role permission helper info */}
+            <div className={`p-2.5 rounded-xl border text-[11px] flex items-center gap-2 transition-all ${
+              activeRole === 'admin'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                : 'bg-sky-500/10 border-sky-500/30 text-sky-700 dark:text-sky-300'
+            }`}>
+              <Info className="w-4 h-4 shrink-0" />
+              <span>{PRESET_ACCOUNTS[activeRole].accessSummary}</span>
+            </div>
+          </div>
+
+          {/* Error Message Alert */}
           {errorMessage && (
-            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed">{errorMessage}</div>
             </div>
@@ -209,7 +333,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
           {/* Forgot Password Notice */}
           {forgotPasswordNotice && (
-            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs font-medium flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs font-medium flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
               <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed">
                 For security reset or credential recovery, please contact your Organization HSE Lead or System Administrator at <span className="font-mono text-amber-400">admin@petrosafe.com</span>.
@@ -219,51 +343,74 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
           {/* Success State */}
           {isSuccess ? (
-            <div className="py-12 text-center space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="py-12 text-center space-y-3 animate-in fade-in zoom-in duration-200">
               <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-500/30">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
                 Authentication Successful
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
-                Access granted. Loading SIF Sentinel Dashboard...
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                Access granted as {activeRole === 'admin' ? 'Chief HSE Administrator' : 'Field Safety Operator'}. Loading platform...
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <form onSubmit={handleSubmit} className="space-y-3.5">
               
-              {/* 1. Organization ID or Email */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-800 dark:text-slate-300 mb-1.5">
-                  Organization ID or Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Building2 className="w-4 h-4" />
+              {/* Organization ID & Email Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Org ID */}
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-slate-300 mb-1">
+                    Org ID
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </div>
+                    <input
+                      type="text"
+                      value={orgId}
+                      onChange={(e) => setOrgId(e.target.value)}
+                      placeholder="id001"
+                      className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#141418] border border-slate-200 dark:border-[#27272e] text-xs font-mono font-semibold text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
+                      required
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={identifier}
-                    onChange={(e) => {
-                      setIdentifier(e.target.value);
-                      if (errorMessage) setErrorMessage('');
-                    }}
-                    placeholder="id001 or admin1@gmail.com"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-[#141418] border border-slate-200 dark:border-[#27272e] text-sm font-medium text-slate-900 dark:text-white placeholder-slate-500 focus:bg-white dark:focus:bg-[#18181e] focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all shadow-2xs"
-                    required
-                  />
+                </div>
+
+                {/* Email Address */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-slate-300 mb-1">
+                    Work Email
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Mail className="w-3.5 h-3.5" />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="e.g. admin1@gmail.com or user1@gmail.com"
+                      className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#141418] border border-slate-200 dark:border-[#27272e] text-xs font-medium text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 2. Password with Show/Hide Toggle */}
+              {/* Password with Show/Hide Toggle */}
               <div>
-                <label className="block text-xs font-semibold text-slate-800 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-800 dark:text-slate-300 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock className="w-4 h-4" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-3.5 h-3.5" />
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -273,36 +420,30 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
                       if (errorMessage) setErrorMessage('');
                     }}
                     placeholder="Enter password"
-                    className="w-full pl-10 pr-11 py-3 rounded-xl bg-slate-50 dark:bg-[#141418] border border-slate-200 dark:border-[#27272e] text-sm font-medium text-slate-900 dark:text-white placeholder-slate-500 focus:bg-white dark:focus:bg-[#18181e] focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all shadow-2xs"
+                    className="w-full pl-8 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-[#141418] border border-slate-200 dark:border-[#27272e] text-xs font-medium text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
                     required
                   />
-                  {/* Show/Hide Password Toggle Button */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    title={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* 3. Options: Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between pt-1">
+              {/* Options: Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between pt-0.5">
                 <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500 accent-amber-500 cursor-pointer"
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-500 accent-amber-500 cursor-pointer"
                   />
-                  <span>Remember me</span>
+                  <span>Remember role</span>
                 </label>
                 
                 <button
@@ -314,46 +455,79 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
                 </button>
               </div>
 
-              {/* 4. Login Button */}
-              <div className="pt-2">
+              {/* Dynamic Login Button */}
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                  className={`w-full py-3 rounded-xl font-bold text-xs shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 ${
+                    activeRole === 'admin'
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 shadow-amber-500/20'
+                      : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-sky-500/20'
+                  }`}
                 >
                   {isSubmitting ? (
-                    <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Login to Safety Intelligence</span>
+                      <span>
+                        {activeRole === 'admin' ? 'Login as Administrator' : 'Login as Normal User'}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </div>
 
-              {/* 5. Quick Demo Account Selector */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-                  <span>Authorized Demo Accounts:</span>
-                  <span className="text-[10px] font-mono text-amber-500">Click to fill</span>
+              {/* ================= 1-CLICK QUICK-FILL DEMO LOGINS ================= */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                  <span>Quick Demo Credentials:</span>
+                  <span className="text-[10px] font-mono text-amber-500">Instant 1-Click Fill</span>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {PRESET_ACCOUNTS.map((acc) => (
-                    <button
-                      key={acc.orgId}
-                      type="button"
-                      onClick={() => handleSelectPreset(acc)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer border ${
-                        identifier === acc.orgId || identifier === acc.email
-                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                          : 'bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-700 hover:text-slate-200'
-                      }`}
-                      title={`${acc.orgName} (${acc.email})`}
-                    >
-                      {acc.orgId}
-                    </button>
-                  ))}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Admin 1-Click Card */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRole('admin')}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/5 hover:bg-amber-500/15 border border-amber-500/20 hover:border-amber-500/40 text-left transition-all cursor-pointer group"
+                    title="Fill Admin credentials: admin1@gmail.com / Admin1@123"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                        <Shield className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-900 dark:text-white">Admin Demo</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">admin1@gmail.com</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded group-hover:bg-amber-500/30 shrink-0">
+                      Fill
+                    </span>
+                  </button>
+
+                  {/* Normal User 1-Click Card */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRole('normal')}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-sky-500/5 hover:bg-sky-500/15 border border-sky-500/20 hover:border-sky-500/40 text-left transition-all cursor-pointer group"
+                    title="Fill Normal User credentials: user1@gmail.com / User1@123"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs shrink-0">
+                        <User className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-900 dark:text-white">Normal User Demo</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">user1@gmail.com</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-sky-400 font-bold bg-sky-500/20 px-2 py-0.5 rounded group-hover:bg-sky-500/30 shrink-0">
+                      Fill
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -363,7 +537,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
         </div>
 
         {/* Bottom Security Note */}
-        <div className="text-center pt-8">
+        <div className="text-center pt-4">
           <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-mono">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
             <span>256-Bit Encrypted OIL SIF Security Standard</span>

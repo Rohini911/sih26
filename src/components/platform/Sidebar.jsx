@@ -6,17 +6,14 @@ import {
   FileText, 
   Activity, 
   ShieldAlert, 
+  ShieldCheck,
   Zap, 
-  AlertOctagon, 
-  CheckSquare, 
-  BarChart3, 
-  Flame, 
-  ShieldCheck, 
-  Settings,
-  Building2, 
-  LogOut,
+  Settings, 
+  LogOut, 
   X,
-  ExternalLink
+  ChevronLeft,
+  ChevronRight,
+  Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,9 +22,18 @@ export default function Sidebar({
   onNavigate, 
   isOpen = false, 
   onClose,
+  isCollapsed = false,
+  onToggleCollapse,
   onExitPlatform
 }) {
   const { user, logout } = useAuth();
+
+  const isAdmin = Boolean(
+    user?.is_admin || 
+    user?.role === 'ADMINISTRATOR' || 
+    user?.role_name === 'Administrator' || 
+    (user?.email && user.email.toLowerCase().includes('admin'))
+  );
 
   const navGroups = [
     {
@@ -38,18 +44,7 @@ export default function Sidebar({
         { id: 'bulk_upload', path: '/bulk-upload', label: 'Bulk Upload', icon: UploadCloud },
         { id: 'reports', path: '/reports', label: 'All Reports', icon: FileText },
         { id: 'week_signals', path: '/week-signals', label: 'Week Signals', icon: Activity },
-        { id: 'strong_report', path: '/strong-report', label: 'Strong Report', icon: ShieldAlert, badge: 'High Risk' },
-      ]
-    },
-    {
-      title: 'SIF & SAFETY',
-      items: [
-        { id: 'sif_precursors', path: '/sif-precursors', label: 'SIF Precursors', icon: Zap },
-        { id: 'critical_alerts', path: '/critical-alerts', label: 'Critical Alerts', icon: AlertOctagon, badge: '4', badgeColor: 'rose' },
-        { id: 'corrective_actions', path: '/corrective-actions', label: 'Corrective Actions', icon: CheckSquare, badge: '18', badgeColor: 'amber' },
-        { id: 'analytics', path: '/analytics', label: 'Analytics', icon: BarChart3 },
-        { id: 'risk_heatmap', path: '/risk-heatmap', label: 'Risk Heatmap', icon: Flame },
-        { id: 'life_saving_rules', path: '/life-saving-rules', label: 'Life-Saving Rules', icon: ShieldCheck },
+        ...(isAdmin ? [{ id: 'sif_precursors', path: '/sif-precursors', label: 'Admin Dashboard (SIF)', icon: Zap }] : []),
       ]
     },
     {
@@ -74,48 +69,90 @@ export default function Sidebar({
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-[#07101F]/95 backdrop-blur-xl border-r border-slate-800/80 text-slate-300 w-64 shrink-0 select-none">
+    <div className={`flex flex-col h-full bg-[#0B1327] border-r border-slate-800/80 text-slate-300 shrink-0 select-none shadow-2xl transition-all duration-300 ${
+      isCollapsed ? 'w-20' : 'w-64'
+    }`}>
       
-      {/* 1. Header: SIF Sentinel & Subtitle */}
-      <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/25">
-              <ShieldCheck className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping opacity-75" />
-            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#07101F]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="text-base font-black tracking-tight text-white font-heading">
-                SIF <span className="text-amber-400 font-black">Sentinel</span>
-              </span>
-            </div>
-            <div className="text-[10px] text-slate-400 font-medium tracking-tight">
-              AI-Powered Safety Platform
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile close button */}
-        {onClose && (
-          <button 
-            onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+      {/* 1. Header: SafetyAI, Subtitle & Arrow */}
+      {isCollapsed ? (
+        /* Collapsed Header: SafetyAI Shield + Three Lines (Menu) & Arrow */
+        <div className="p-3.5 border-b border-slate-800/80 flex flex-col items-center justify-center gap-2">
+          <div 
+            className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF6B4A] to-[#FF5A36] flex items-center justify-center text-white shadow-lg shadow-orange-500/25 shrink-0" 
+            title="SafetyAI Platform"
           >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+            <ShieldCheck className="w-5 h-5 text-white stroke-[2.5]" />
+          </div>
+          
+          {/* Three Lines (Menu) + Chevron button to Expand */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="w-10 h-8 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 text-slate-300 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer group shadow-xs"
+              title="Expand navigation sidebar"
+              aria-label="Expand sidebar"
+            >
+              <Menu className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-400 transition-colors" />
+            </button>
+          )}
+        </div>
+      ) : (
+        /* Expanded Header: Full Brand Logo + Collapse Arrow */
+        <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF6B4A] to-[#FF5A36] flex items-center justify-center text-white shadow-lg shadow-orange-500/25">
+                <ShieldCheck className="w-5 h-5 text-white stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-lg font-black tracking-tight text-white font-heading">
+                  Safety<span className="text-[#FF5A36]">AI</span>
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium tracking-tight truncate">
+                AI-Powered Safety Platform
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop Arrow Collapse Button */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/90 transition-all cursor-pointer items-center justify-center shrink-0 ml-1.5"
+              title="Collapse sidebar (Show symbols only)"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronLeft className="w-5 h-5 text-slate-300 hover:text-white transition-colors" />
+            </button>
+          )}
+
+          {/* Mobile close button */}
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 2. Navigation Items List grouped */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-3.5 custom-scrollbar">
-        {navGroups.map((group) => (
-          <div key={group.title} className="space-y-0.5">
-            <div className="px-2.5 pb-1 text-[9.5px] font-bold uppercase tracking-wider text-slate-400">
-              {group.title}
-            </div>
+      <div className={`flex-1 overflow-y-auto ${isCollapsed ? 'px-2 py-3' : 'px-3 py-4'} space-y-3 custom-scrollbar`}>
+        {navGroups.map((group, gIdx) => (
+          <div key={group.title} className="space-y-1">
+            {isCollapsed ? (
+              gIdx > 0 ? <div className="my-2 border-t border-slate-800/80 mx-2" /> : null
+            ) : (
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {group.title}
+              </div>
+            )}
 
             {group.items.map((item) => {
               const Icon = item.icon;
@@ -125,46 +162,54 @@ export default function Sidebar({
                 <button
                   key={item.id}
                   onClick={() => handleItemClick(item.path)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs font-semibold transition-all duration-200 group relative cursor-pointer ${
+                  title={item.label}
+                  className={`w-full flex items-center rounded-xl text-left text-xs font-semibold transition-all duration-200 group relative cursor-pointer ${
+                    isCollapsed
+                      ? 'justify-center p-2.5 h-11'
+                      : 'justify-between px-3.5 py-2.5'
+                  } ${
                     isActive
-                      ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 border border-amber-300'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 border border-transparent'
+                      ? 'bg-gradient-to-r from-[#FF5A36] to-[#FFA133] text-white font-bold shadow-md shadow-orange-500/25'
+                      : 'text-slate-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`p-1 rounded-lg transition-colors ${
-                      isActive 
-                        ? 'bg-slate-950/20 text-slate-950' 
-                        : 'text-slate-400 group-hover:text-amber-400'
-                    }`}>
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 min-w-0'}`}>
+                    <div className="relative flex items-center justify-center">
+                      <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                        isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                      }`} />
+                      {isCollapsed && item.isAi && (
+                        <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-[#0B1327]" />
+                      )}
                     </div>
-                    <span className="truncate">{item.label}</span>
+                    {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </div>
 
-                  {/* Status Badges */}
-                  <div className="flex items-center gap-1 shrink-0 ml-1.5">
-                    {item.badge && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                        isActive
-                          ? 'bg-slate-950/20 text-slate-950 font-black'
-                          : item.badgeColor === 'rose'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    )}
-                    {item.isAi && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                        isActive
-                          ? 'bg-slate-950/20 text-slate-950 font-black'
-                          : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                      }`}>
-                        AI
-                      </span>
-                    )}
-                  </div>
+                  {/* Status Badges (shown when expanded) */}
+                  {!isCollapsed && (
+                    <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                      {item.badge && (
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : item.badgeColor === 'rose'
+                              ? 'bg-rose-500 text-white'
+                              : 'bg-orange-500 text-white'
+                        }`}>
+                          {item.badge}
+                        </span>
+                      )}
+                      {item.isAi && (
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-blue-500 text-white'
+                        }`}>
+                          AI
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -172,48 +217,54 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* 3. Bottom of Sidebar: Organization, Industrial Site A & System Online */}
-      <div className="p-3 border-t border-slate-800/80 bg-[#070D18]/90 space-y-2">
+      {/* 3. Bottom of Sidebar: User Profile & Exit Platform */}
+      <div className={`p-3 border-t border-slate-800/80 bg-[#0B1327] ${isCollapsed ? 'flex flex-col items-center gap-2' : 'space-y-2.5'}`}>
         
-        {/* Organization Information Card */}
-        <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-                <Building2 className="w-3 h-3 text-amber-400" />
+        {/* User Identity & Settings shortcut */}
+        <button
+          onClick={() => handleItemClick('/settings')}
+          className={`rounded-xl bg-[#131E3A] border border-slate-700/60 shadow-inner flex items-center hover:bg-[#1a294e] hover:border-slate-600 transition-all text-left cursor-pointer group ${
+            isCollapsed 
+              ? 'w-10 h-10 p-0 justify-center' 
+              : 'w-full p-2.5 gap-2.5'
+          }`}
+          title={user?.full_name || 'Account Settings'}
+        >
+          {user?.avatar ? (
+            <img 
+              src={user.avatar} 
+              alt={user?.full_name || 'User'} 
+              className="w-8 h-8 rounded-lg object-cover border border-orange-500/40 shrink-0 shadow-xs ring-1 ring-orange-500/20"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#FF5A36] to-[#FFA133] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+              {user?.full_name ? user.full_name.substring(0, 2).toUpperCase() : 'AD'}
+            </div>
+          )}
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-white truncate group-hover:text-orange-400 transition-colors">
+                {user?.full_name || 'Chief HSE Administrator'}
               </div>
-              <div className="min-w-0">
-                <div className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
-                  Organization
-                </div>
-                <div className="text-xs font-bold text-white truncate" title="PetroSafe Industries / Industrial Site A">
-                  PetroSafe Industries / Industrial Site A
-                </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                {user?.role_name || (user?.is_admin ? 'Administrator' : 'Normal User')}
               </div>
             </div>
-          </div>
-
-          {/* Operational Status Indicator */}
-          <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-emerald-400">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-              </span>
-              <span>System Online</span>
-            </div>
-            <span className="text-[9px] font-mono text-slate-500">99.98%</span>
-          </div>
-        </div>
+          )}
+        </button>
 
         {/* Exit to Public Website Button */}
         <button
           onClick={handleExit}
-          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-transparent hover:border-slate-700/60 cursor-pointer"
+          className={`flex items-center rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer ${
+            isCollapsed
+              ? 'w-10 h-10 p-0 justify-center'
+              : 'w-full gap-2 px-3 py-2'
+          }`}
           title="Return to public safety overview or log out"
         >
-          <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-          <span>Exit Platform</span>
+          <LogOut className="w-4 h-4 text-slate-400" />
+          {!isCollapsed && <span>Exit Platform</span>}
         </button>
 
       </div>
@@ -223,8 +274,10 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Desktop Sticky Sidebar */}
-      <aside className="hidden lg:flex flex-col h-screen sticky top-0 z-40 shrink-0">
+      {/* Desktop Fixed Static Sidebar */}
+      <aside className={`hidden lg:flex flex-col h-screen fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 shadow-2xl ${
+        isCollapsed ? 'w-20' : 'w-64'
+      }`}>
         {sidebarContent}
       </aside>
 

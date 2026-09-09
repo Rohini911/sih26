@@ -91,26 +91,26 @@ export default function StrongReportView() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-100 animate-in fade-in duration-200">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-800 animate-in fade-in duration-200">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-stone-200/80">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+            <div className="p-2 rounded-xl bg-rose-50 border border-rose-200/60 text-rose-600">
               <ShieldAlert className="w-5 h-5" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold font-heading text-white tracking-tight">
-              Strong Reports & Critical Precursors
+            <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
+              Strong Reports &amp; Critical Precursors
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Top-ranked high-value observations with acute Serious Injury & Fatality potential requiring chief executive review
+          <p className="text-xs text-slate-500 mt-1">
+            Top-ranked high-value observations with acute Serious Injury &amp; Fatality potential requiring chief executive review
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+          <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-50 text-rose-700 border border-rose-200/60">
             4 Critical Priority Events
           </span>
         </div>
@@ -121,19 +121,19 @@ export default function StrongReportView() {
         {strongReports.map((report) => (
           <div 
             key={report.id}
-            className="rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 hover:border-amber-500/40 p-6 shadow-xl space-y-5 transition-all duration-300"
+            className="rounded-2xl bg-white border border-[#EAE6E1] hover:border-orange-300 p-6 shadow-sm space-y-5 transition-all duration-300 text-slate-800"
           >
             
             {/* Top Bar with Priority & AI Scores */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="font-mono text-xs font-bold text-amber-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                <span className="font-mono text-xs font-bold text-[#FF5A36] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
                   {report.report_reference}
                 </span>
-                <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200/60">
                   {report.investigation_priority}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   {report.location} • {report.report_date}
                 </span>
               </div>
@@ -141,62 +141,54 @@ export default function StrongReportView() {
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 uppercase font-mono">Risk Score</span>
-                  <div className="text-lg font-black font-mono text-rose-400">{report.risk_score} / 100</div>
-                </div>
-                <div className="text-right pl-3 border-l border-slate-800">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono">AI Confidence</span>
-                  <div className="text-lg font-black font-mono text-cyan-400">{report.ai_confidence}%</div>
+                  <div className="text-lg font-black font-mono text-rose-600">{report.risk_score} / 100</div>
                 </div>
               </div>
             </div>
 
             {/* Headline & Description */}
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                 {report.title}
               </h3>
-              <p className="text-xs text-slate-300 leading-relaxed mt-2 bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
+              <p className="text-xs text-slate-600 leading-relaxed mt-2 bg-[#FBF9F6] p-3.5 rounded-xl border border-[#EAE6E1]">
                 {report.description}
               </p>
             </div>
 
             {/* Key Metadata Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                <span className="text-[10px] font-bold text-rose-400 uppercase font-mono flex items-center gap-1">
+              <div className="p-3.5 rounded-xl bg-[#FBF9F6] border border-[#EAE6E1] space-y-1">
+                <span className="text-[10px] font-bold text-rose-600 uppercase font-mono flex items-center gap-1">
                   <Flame className="w-3 h-3" />
                   High-Energy Vector
                 </span>
-                <div className="text-xs font-medium text-slate-200">{report.energy_source}</div>
+                <div className="text-xs font-medium text-slate-800">{report.energy_source}</div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                <span className="text-[10px] font-bold text-amber-400 uppercase font-mono flex items-center gap-1">
+              <div className="p-3.5 rounded-xl bg-[#FBF9F6] border border-[#EAE6E1] space-y-1">
+                <span className="text-[10px] font-bold text-[#FF5A36] uppercase font-mono flex items-center gap-1">
                   <Layers className="w-3 h-3" />
                   Barrier Integrity State
                 </span>
-                <div className="text-xs font-medium text-slate-200">{report.barrier_status}</div>
+                <div className="text-xs font-medium text-slate-800">{report.barrier_status}</div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                <span className="text-[10px] font-bold text-cyan-400 uppercase font-mono flex items-center gap-1">
+              <div className="p-3.5 rounded-xl bg-[#FBF9F6] border border-[#EAE6E1] space-y-1">
+                <span className="text-[10px] font-bold text-purple-600 uppercase font-mono flex items-center gap-1">
                   <AlertOctagon className="w-3 h-3" />
                   SIF Consequence Potential
                 </span>
-                <div className="text-xs font-medium text-rose-300">{report.sif_potential}</div>
+                <div className="text-xs font-medium text-rose-600 font-semibold">{report.sif_potential}</div>
               </div>
             </div>
 
-            {/* Bottom Action & Key Learnings */}
-            <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-              <div className="text-slate-300">
-                <strong className="text-amber-400">Engineering Mandate:</strong> {report.key_learnings}
-              </div>
-
+            {/* Bottom Action */}
+            <div className="pt-3 border-t border-stone-100 flex items-center justify-end text-xs">
               <button
                 type="button"
                 onClick={() => setSelectedReport(report)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-black text-xs shadow-md shrink-0 cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#ff5934] hover:to-[#e64a27] text-white font-bold text-xs shadow-md shadow-orange-500/20 shrink-0 cursor-pointer flex items-center gap-1.5 transition-all"
               >
                 <span>Examine SIF Barrier Dossier</span>
                 <ArrowRight className="w-3.5 h-3.5" />

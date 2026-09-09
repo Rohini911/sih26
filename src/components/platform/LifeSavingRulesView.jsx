@@ -169,28 +169,29 @@ export default function LifeSavingRulesView() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-100 animate-in fade-in duration-200">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-800 animate-in fade-in duration-200">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-[#EAE6E1]">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-[#FFF1EE] border border-[#FFE0D6] flex items-center justify-center text-[#FF5A36] shadow-xs">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold font-heading text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
               Life-Saving Rules Compliance Matrix
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1 ml-12">
             Standardized 9 IOGP barrier rules mapped directly to field telemetry, control verifications, and observed infractions
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-            Overall Compliance: 91.4%
-          </span>
+          <div className="px-4 py-2 rounded-xl bg-white border border-[#EAE6E1] text-xs font-mono text-slate-700 shadow-xs flex items-center gap-2">
+            <span>Overall Compliance:</span>
+            <strong className="text-emerald-600 font-bold text-sm">91.4%</strong>
+          </div>
         </div>
       </div>
 
@@ -202,48 +203,48 @@ export default function LifeSavingRulesView() {
             <div 
               key={rule.id}
               onClick={() => setSelectedRule(rule)}
-              className="p-5 rounded-2xl bg-[#0E1628]/80 backdrop-blur-xl border border-slate-800 hover:border-amber-500/40 transition-all cursor-pointer group shadow-xl space-y-4 flex flex-col justify-between"
+              className="p-5 rounded-2xl bg-white border border-[#EAE6E1] hover:border-[#FF5A36]/40 hover:shadow-md transition-all cursor-pointer group shadow-xs space-y-4 flex flex-col justify-between"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                    <div className="w-9 h-9 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] text-[#FF5A36] group-hover:bg-[#FFF1EE] transition-colors flex items-center justify-center shadow-xs">
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="font-mono text-[10px] text-amber-400 font-bold block">{rule.id}</span>
-                      <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
+                      <span className="font-mono text-[10px] text-[#FF5A36] font-bold block">{rule.id}</span>
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#FF5A36] transition-colors">
                         {rule.name}
                       </h3>
                     </div>
                   </div>
 
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                     rule.compliance >= 92 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                       : rule.compliance >= 85
-                        ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
                   }`}>
                     {rule.compliance}% Compliance
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
+                <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
                   {rule.mandate}
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-slate-800/80 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                  <span>Verifications: <strong className="text-white">{rule.verifications}</strong></span>
-                  <span>Violations: <strong className={rule.violations > 10 ? 'text-rose-400' : 'text-slate-200'}>{rule.violations}</strong></span>
+              <div className="pt-3 border-t border-stone-100 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-500 text-[11px] font-mono">
+                  <span>Verifications: <strong className="text-slate-900 font-bold">{rule.verifications}</strong></span>
+                  <span>Violations: <strong className={rule.violations > 10 ? 'text-rose-600 font-bold' : 'text-slate-700'}>{rule.violations}</strong></span>
                 </div>
 
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
                   <div 
                     className={`h-full rounded-full ${
-                      rule.compliance >= 92 ? 'bg-emerald-400' : rule.compliance >= 85 ? 'bg-amber-400' : 'bg-rose-500'
+                      rule.compliance >= 92 ? 'bg-emerald-500' : rule.compliance >= 85 ? 'bg-amber-500' : 'bg-rose-500'
                     }`}
                     style={{ width: `${rule.compliance}%` }}
                   />
@@ -257,51 +258,51 @@ export default function LifeSavingRulesView() {
 
       {/* Detail Modal */}
       {selectedRule && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 select-none animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-[#0E1628] rounded-2xl border border-slate-800 shadow-2xl p-6 space-y-5 text-left text-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 select-none animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white rounded-2xl border border-[#EAE6E1] shadow-2xl p-6 space-y-5 text-left text-slate-800">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2.5">
-                <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 font-mono font-bold text-xs">
+                <span className="px-2.5 py-1 rounded-lg bg-[#FFF1EE] text-[#FF5A36] border border-[#FFE0D6] font-mono font-bold text-xs">
                   {selectedRule.id}
                 </span>
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-base font-bold text-slate-900">
                   {selectedRule.name} – {selectedRule.category}
                 </h3>
               </div>
               <button 
                 onClick={() => setSelectedRule(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-stone-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1">
-              <div className="font-bold text-amber-300 uppercase tracking-wider text-[11px]">IOGP Mandatory Standard</div>
-              <p className="text-slate-200 leading-relaxed">{selectedRule.mandate}</p>
+            <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] text-xs space-y-1">
+              <div className="font-bold text-[#FF5A36] uppercase tracking-wider text-[11px]">IOGP Mandatory Standard</div>
+              <p className="text-slate-700 leading-relaxed">{selectedRule.mandate}</p>
             </div>
 
             <div className="space-y-2 text-xs">
-              <span className="font-bold uppercase tracking-wider text-emerald-400 block">
+              <span className="font-bold uppercase tracking-wider text-emerald-700 block">
                 Critical Barrier Controls
               </span>
               {selectedRule.controls.map((ctrl, i) => (
-                <div key={i} className="p-3 rounded-xl bg-slate-900/50 border border-slate-800 flex items-start gap-2.5">
-                  <span className="text-emerald-400 font-bold">✓</span>
-                  <span className="text-slate-200">{ctrl}</span>
+                <div key={i} className="p-3 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] flex items-start gap-2.5">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span className="text-slate-700">{ctrl}</span>
                 </div>
               ))}
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 grid grid-cols-2 gap-4 text-xs">
+            <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] grid grid-cols-2 gap-4 text-xs">
               <div>
-                <span className="text-slate-400 text-[11px] block">Total Control Audits</span>
-                <span className="font-mono text-base font-bold text-white">{selectedRule.verifications}</span>
+                <span className="text-slate-500 text-[11px] block">Total Control Audits</span>
+                <span className="font-mono text-base font-bold text-slate-900">{selectedRule.verifications}</span>
               </div>
               <div>
-                <span className="text-slate-400 text-[11px] block">Logged Infractions</span>
-                <span className={`font-mono text-base font-bold ${selectedRule.violations > 10 ? 'text-rose-400' : 'text-slate-200'}`}>
+                <span className="text-slate-500 text-[11px] block">Logged Infractions</span>
+                <span className={`font-mono text-base font-bold ${selectedRule.violations > 10 ? 'text-rose-600' : 'text-slate-700'}`}>
                   {selectedRule.violations}
                 </span>
               </div>
@@ -311,7 +312,7 @@ export default function LifeSavingRulesView() {
               <button
                 type="button"
                 onClick={() => setSelectedRule(null)}
-                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#FF5A36] hover:to-[#E04826] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all cursor-pointer"
               >
                 Close Rule
               </button>

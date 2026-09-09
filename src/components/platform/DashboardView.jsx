@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Zap, 
@@ -20,856 +20,1035 @@ import {
   ChevronDown,
   Lightbulb,
   Layers,
-  PieChart as PieChartIcon
+  BarChart3,
+  PieChart as PieChartIcon,
+  X,
+  MapPin,
+  Building2,
+  Search,
+  Flame,
+  Minus,
+  ExternalLink,
+  UploadCloud
 } from 'lucide-react';
+import { api } from '../../services/api';
+import { 
+  getStoreState, 
+  subscribeSafetyStore, 
+  getDashboardMetrics, 
+  getTodayDateString 
+} from '../../services/safetyStore';
 import {
   ResponsiveContainer,
+  BarChart,
+  Bar,
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
+  Tooltip,
   PieChart,
   Pie,
   Cell
 } from 'recharts';
 
 export default function DashboardView({ onNavigate }) {
-  const [trendRange, setTrendRange] = useState('Last 7 Months');
+  const [storeState, setStoreState] = useState(getStoreState());
+  const [storeMetrics, setStoreMetrics] = useState(getDashboardMetrics());
+
+  useEffect(() => {
+    const unsub = subscribeSafetyStore((newState) => {
+      setStoreState(newState);
+      setStoreMetrics(getDashboardMetrics());
+    });
+    return unsub;
+  }, []);
+
+  const [trendRange, setTrendRange] = useState('7 Days');
+  const [activeHazard, setActiveHazard] = useState(null);
+  const [activeClassification, setActiveClassification] = useState(null);
+  const [donutHoverIndex, setDonutHoverIndex] = useState(null);
+  const [selectedSite, setSelectedSite] = useState('ALL');
+
+  // ================= TOP 2 STRONG SIF REPORTS =================
+  const defaultStrongReports = [
+    {
+      id: 101,
+      report_reference: 'SR-CRIT-2026-01',
+      report_type: 'Near Miss',
+      title: 'Suspended 2-Ton Casing Flange Dropped on Drill Floor Walkway',
+      description: 'During crane hoisting at Rig 04 Derrick Floor, a 4-inch heavy steel drilling flange slipped from rigging sling at 18m height and fell 2m from roughnecks. No exclusion barricade established.',
+      location: 'Plant 03 • Drilling Rig 04',
+      facility_unit: 'Derrick Floor Area',
+      report_date: '2026-09-06',
+      sif_potential: 'FATALITY / PERMANENT DISABILITY POTENTIAL (98%)',
+      ai_confidence: 96.4,
+      risk_score: 94,
+      investigation_priority: 'P1 MANDATORY STOP-WORK',
+      energy_source: 'Gravitational Potential Energy (2,000 kg at 18m)',
+      barrier_status: 'DIRECT BARRIER TOTALLY ABSENT'
+    },
+    {
+      id: 102,
+      report_reference: 'SR-CRIT-2026-02',
+      report_type: 'Unsafe Act',
+      title: 'High Voltage 11kV Substation Switchgear Live Entry without LOTO',
+      description: 'Technician observed entering 11kV electrical switchgear room for inspection without Lock-Out/Tag-Out (LOTO) energy isolation or verifying zero-energy state with voltage detector.',
+      location: 'Plant 01 • Central Processing Facility',
+      facility_unit: 'Main Substation A',
+      report_date: '2026-09-06',
+      sif_potential: 'SEVERE ARC FLASH / FATAL ELECTROCUTION POTENTIAL (94%)',
+      ai_confidence: 94.8,
+      risk_score: 91,
+      investigation_priority: 'P1 IMMEDIATE AUDIT ENFORCEMENT',
+      energy_source: 'High-Voltage Electrical Energy (11,000 Volts)',
+      barrier_status: 'CRITICAL ISOLATION PROTOCOL BYPASSED'
+    }
+  ];
+
+  // ================= WEAK SIGNALS (UP TO 6 WITH SEARCH) =================
+  const defaultWeakSignals = [
+    {
+      signal_id: 'WS-01',
+      title: 'Repeated Unbarricaded Rigging & Suspended Load Exposures',
+      category: 'Lifting Operations & Rigging',
+      risk_level: 'High',
+      risk_score: 94,
+      energy_source: 'Gravitational Potential Energy (Crane Hoist)',
+      barrier_status: 'Exclusion Barricades Absent Around Drop Zone',
+      trend: 'Increasing',
+      first_detected: '2026-08-28'
+    },
+    {
+      signal_id: 'WS-02',
+      title: 'Compromised Electrical Isolation & Interlock Bypass Patterns',
+      category: 'Hazardous Energy & LOTO',
+      risk_level: 'High',
+      risk_score: 91,
+      energy_source: 'High-Voltage Residual Potential (11kV)',
+      barrier_status: 'LOTO Lockout Padlocks Missing',
+      trend: 'Increasing',
+      first_detected: '2026-08-30'
+    },
+    {
+      signal_id: 'WS-03',
+      title: 'Vessel Entry Without Multi-Gas Verification or Standby Presence',
+      category: 'Confined Space Entry',
+      risk_level: 'High',
+      risk_score: 88,
+      energy_source: 'Toxic Gas & Atmospheric Asphyxiation',
+      barrier_status: 'Continuous Gas Sniffers Uncalibrated',
+      trend: 'Stable',
+      first_detected: '2026-09-01'
+    },
+    {
+      signal_id: 'WS-04',
+      title: 'Scaffold & Roof Leading Edge Fall Protection Deficiencies',
+      category: 'Working at Height',
+      risk_level: 'Medium',
+      risk_score: 74,
+      energy_source: 'Gravitational Elevation Energy (Over 1.8m)',
+      barrier_status: 'Dual-Lanyard 100% Tie-Off Inconsistent',
+      trend: 'Decreasing',
+      first_detected: '2026-09-02'
+    },
+    {
+      signal_id: 'WS-05',
+      title: 'Pressurized Line Disconnection & Hydraulic Energy Release',
+      category: 'Pressure & Hazardous Fluids',
+      risk_level: 'Medium',
+      risk_score: 68,
+      energy_source: 'Stored Hydraulic Line Pressure (40 Bar)',
+      barrier_status: 'Bleed Valve Closed / Not Verified Zero',
+      trend: 'Stable',
+      first_detected: '2026-09-03'
+    },
+    {
+      signal_id: 'WS-06',
+      title: 'Ergonomics & Low-Velocity Particulate Exposure Inconsistencies',
+      category: 'Health & Protective Equipment',
+      risk_level: 'Low',
+      risk_score: 42,
+      energy_source: 'Airborne Particulates & Repetitive Strain',
+      barrier_status: 'Dust Filtration Facepiece Non-Compliance',
+      trend: 'Decreasing',
+      first_detected: '2026-09-04'
+    }
+  ];
+
+  const [weakSignalSearch, setWeakSignalSearch] = useState('');
+  const [weakSignalsList, setWeakSignalsList] = useState(defaultWeakSignals);
+
+  // Attempt to load live weak signals from backend
+  useEffect(() => {
+    let isMounted = true;
+    api.getWeakSignals()
+      .then((data) => {
+        if (isMounted && data?.weak_signals && data.weak_signals.length > 0) {
+          setWeakSignalsList(data.weak_signals);
+        }
+      })
+      .catch(() => {
+        // Fallback already in place
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Filter weak signals by search query, capped at 6
+  const filteredWeakSignals = weakSignalsList
+    .filter((sig) => {
+      const q = weakSignalSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        (sig.title || '').toLowerCase().includes(q) ||
+        (sig.category || '').toLowerCase().includes(q) ||
+        (sig.signal_id || '').toLowerCase().includes(q) ||
+        (sig.energy_source || '').toLowerCase().includes(q) ||
+        (sig.barrier_status || '').toLowerCase().includes(q)
+      );
+    })
+    .slice(0, 6);
+
+  // Interactive Submit Report Card State
+  const [quickCategory, setQuickCategory] = useState('Near Miss');
+  const [quickUnit, setQuickUnit] = useState('Unit 1');
+  const [quickText, setQuickText] = useState('');
+  const [isQuickSubmitting, setIsQuickSubmitting] = useState(false);
+  const [quickSubmitted, setQuickSubmitted] = useState(false);
+
+  const quickCategories = [
+    {
+      id: 'Near Miss',
+      title: 'Near Miss',
+      sub: 'High-energy release',
+      icon: Zap,
+      iconColor: 'text-[#FF5A36]',
+      iconBg: 'bg-orange-100/80',
+      energy: 'Gravity / High Kinetic Energy',
+      conf: '96.2%'
+    },
+    {
+      id: 'Unsafe Act',
+      title: 'Unsafe Act',
+      sub: 'LOTO / PPE bypass',
+      icon: AlertTriangle,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-100/80',
+      energy: 'Electrical / Arc Flash Vector',
+      conf: '93.5%'
+    },
+    {
+      id: 'Hazard Condition',
+      title: 'Hazard Condition',
+      sub: 'Degraded barriers',
+      icon: ShieldAlert,
+      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-100/80',
+      energy: 'Pressure / Flange Leak Vector',
+      conf: '94.8%'
+    },
+    {
+      id: 'Barrier Defect',
+      title: 'Barrier Defect',
+      sub: 'Equipment anomalies',
+      icon: ShieldCheck,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-100/80',
+      energy: 'Mechanical / Rigging Degradation',
+      conf: '91.4%'
+    }
+  ];
+
+  const activeQuickMeta = quickCategories.find(c => c.id === quickCategory) || quickCategories[0];
+
+  const handleQuickSubmit = (e) => {
+    e?.preventDefault();
+    setIsQuickSubmitting(true);
+    setTimeout(() => {
+      setIsQuickSubmitting(false);
+      setQuickSubmitted(true);
+      setTimeout(() => {
+        setQuickSubmitted(false);
+        setQuickText('');
+        handleNav('/ai-analysis');
+      }, 900);
+    }, 800);
+  };
 
   const handleNav = (path) => {
     if (onNavigate) onNavigate(path);
   };
 
-  // 7 Months Risk Overview Data (Overall Safety vs SIF Risk)
-  const riskOverviewData = [
-    { month: 'Jan', overallSafety: 48, sifRisk: 34 },
-    { month: 'Feb', overallSafety: 56, sifRisk: 38 },
-    { month: 'Mar', overallSafety: 59, sifRisk: 36 },
-    { month: 'Apr', overallSafety: 68, sifRisk: 42 },
-    { month: 'May', overallSafety: 76, sifRisk: 48 },
-    { month: 'Jun', overallSafety: 81, sifRisk: 55 },
-    { month: 'Jul', overallSafety: 87, sifRisk: 62 },
+  const handleBarClick = (entry) => {
+    const cat = entry?.shortName || entry?.category;
+    if (!cat) return;
+    setActiveClassification(null);
+    setActiveHazard(prev => prev === cat ? null : cat);
+  };
+
+  const handleClassificationClick = (name) => {
+    if (!name) return;
+    setActiveHazard(null);
+    setActiveClassification(prev => prev === name ? null : name);
+  };
+
+  const clearFilters = () => {
+    setActiveHazard(null);
+    setActiveClassification(null);
+  };
+
+  // Helper categorizers for dynamic hazard mapping from uploaded reports
+  const categorizeHazard = (text) => {
+    const t = (text || '').toLowerCase();
+    if (t.includes('gas') || t.includes('explosion') || t.includes('flange') || t.includes('blowout') || t.includes('pressure') || t.includes('lpg')) return 'Pressure & Flammable Gas';
+    if (t.includes('crane') || t.includes('rigging') || t.includes('load') || t.includes('hoist') || t.includes('casing') || t.includes('sling')) return 'Lifting Operations & Rigging';
+    if (t.includes('electric') || t.includes('loto') || t.includes('substation') || t.includes('switchboard') || t.includes('arc flash') || t.includes('grounding')) return 'Electrical Energy & LOTO';
+    if (t.includes('fall') || t.includes('height') || t.includes('scaffold') || t.includes('ladder')) return 'Working at Height';
+    if (t.includes('weld') || t.includes('hot work') || t.includes('fire') || t.includes('spark') || t.includes('thermal') || t.includes('steam')) return 'Hot Work & Thermal Fire';
+    if (t.includes('confined') || t.includes('toxic') || t.includes('h2s') || t.includes('asphyxiation') || t.includes('chemical') || t.includes('acid')) return 'Toxic & Confined Space';
+    if (t.includes('pulley') || t.includes('pinch') || t.includes('machinery') || t.includes('grating') || t.includes('hydraulic') || t.includes('mechanical')) return 'Mechanical & Process Safety';
+    return 'General Operational Safety';
+  };
+
+  const getShortCategory = (cat) => {
+    if (cat.includes('Pressure') || cat.includes('Gas')) return 'Pressure';
+    if (cat.includes('Lifting')) return 'Lifting';
+    if (cat.includes('Electrical')) return 'Electrical';
+    if (cat.includes('Height')) return 'Height';
+    if (cat.includes('Hot Work') || cat.includes('Fire')) return 'Hot Work';
+    if (cat.includes('Toxic') || cat.includes('Confined')) return 'Confined';
+    if (cat.includes('Mechanical')) return 'Mechanical';
+    return 'General';
+  };
+
+  // 1. Hazard Categories Breakdown Data (Dynamically aggregated from uploaded records)
+  const hazardCategoryData = React.useMemo(() => {
+    const reports = storeState.reports || [];
+    if (reports.length === 0) return [];
+    
+    const catMap = {};
+    reports.forEach((r) => {
+      const fullCat = categorizeHazard(r.identified_hazard || r.description);
+      const shortName = getShortCategory(fullCat);
+      if (!catMap[fullCat]) {
+        catMap[fullCat] = {
+          category: fullCat,
+          shortName: shortName,
+          sifHigh: 0,
+          nonSif: 0,
+          total: 0,
+          description: r.identified_hazard || r.description
+        };
+      }
+      const isSIF = r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80);
+      if (isSIF) {
+        catMap[fullCat].sifHigh += 1;
+      } else {
+        catMap[fullCat].nonSif += 1;
+      }
+      catMap[fullCat].total += 1;
+    });
+
+    return Object.values(catMap).sort((a, b) => b.total - a.total);
+  }, [storeState.reports]);
+
+  // Max count for BarChart YAxis
+  const maxHazardCount = React.useMemo(() => {
+    if (hazardCategoryData.length === 0) return 4;
+    return Math.max(4, ...hazardCategoryData.map(h => h.total || 0));
+  }, [hazardCategoryData]);
+
+  // 2. SIF vs Non-SIF vs Near Misses Donut Chart Data (Reflecting active safety reports)
+  const classificationDistributionData = React.useMemo(() => {
+    const reports = storeState.reports || [];
+    const total = reports.length || 1;
+    const sifCount = reports.filter(r => r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80)).length;
+    const nearMissCount = reports.filter(r => (r.report_type || '').toLowerCase().includes('near miss')).length;
+    const nonSifCount = Math.max(0, reports.length - sifCount);
+
+    return [
+      { 
+        name: 'SIF Precursors', 
+        value: reports.length > 0 ? Math.round((sifCount / total) * 100) : 0, 
+        count: sifCount, 
+        color: '#FF5A36',
+        description: 'High-severity critical precursors'
+      },
+      { 
+        name: 'Non-SIF / Weak Signals', 
+        value: reports.length > 0 ? Math.round((nonSifCount / total) * 100) : 0, 
+        count: nonSifCount, 
+        color: '#10B981',
+        description: 'Routine observations & weak signals'
+      },
+      { 
+        name: 'Near Misses', 
+        value: reports.length > 0 ? Math.round((nearMissCount / total) * 100) : 0, 
+        count: nearMissCount, 
+        color: '#8B5CF6',
+        description: 'Immediate near-miss incidents'
+      }
+    ];
+  }, [storeState.reports]);
+
+  // 3. Safety Reports Table (Dynamically mapped from uploaded safety reports)
+  const summaryReports = React.useMemo(() => {
+    const reports = storeState.reports || [];
+    return reports.map((r, idx) => {
+      const fullCat = categorizeHazard(r.identified_hazard || r.description);
+      const isSIF = r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80);
+      const isNearMiss = (r.report_type || '').toLowerCase().includes('near miss');
+      return {
+        id: r.report_reference || `REP-ID001-${String(idx + 1).padStart(4, '0')}`,
+        type: r.report_type || 'Near Miss',
+        hazardCategory: getShortCategory(fullCat),
+        classification: isSIF ? 'SIF Precursors' : (isNearMiss ? 'Near Misses' : 'Non-SIF / Weak Signals'),
+        location: r.location || r.facility_unit || 'Unit 1',
+        risk: isSIF ? 'Critical' : 'Low',
+        score: r.ai_score || (isSIF ? 92 : 45),
+        status: r.status || 'Under Review',
+        date: r.report_date || getTodayDateString(),
+        description: r.description || ''
+      };
+    });
+  }, [storeState.reports]);
+
+  // Dynamic filter computed based on active chart interaction
+  const filteredReports = summaryReports.filter(rep => {
+    if (activeHazard) return rep.hazardCategory === activeHazard;
+    if (activeClassification) return rep.classification === activeClassification;
+    return true;
+  });
+
+  // Custom Dark Tooltip for Hazard Categories Bar Chart
+  const CustomHazardTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]?.payload;
+      return (
+        <div className="bg-[#0F172A] text-white border border-slate-700/80 p-3 rounded-xl shadow-2xl text-xs space-y-1.5 min-w-[210px]">
+          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+            <span>{data?.category || label}</span>
+            <span className="text-[#FF5A36] font-mono text-[11px] font-bold">{data?.total} {data?.total === 1 ? 'Incident' : 'Incidents'}</span>
+          </div>
+          {data?.sifHigh > 0 && (
+            <div className="flex items-center justify-between text-rose-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF5A36]" />
+                SIF Precursor (High)
+              </span>
+              <strong className="text-white font-mono">{data.sifHigh}</strong>
+            </div>
+          )}
+          {data?.nonSif > 0 && (
+            <div className="flex items-center justify-between text-emerald-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#10B981]" />
+                Non-SIF / Weak Signal
+              </span>
+              <strong className="text-white font-mono">{data.nonSif}</strong>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/60 leading-relaxed italic">
+            {data?.description}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Unit Selector Options for Day-Wise Trend Analysis
+  const siteOptions = [
+    { id: 'ALL', name: 'All Units', location: 'Enterprise-wide' },
+    { id: 'PLANT_01', name: 'Unit 1', location: 'Unit 1' },
+    { id: 'PLANT_02', name: 'Unit 2', location: 'Unit 2' },
+    { id: 'PLANT_03', name: 'Unit 3', location: 'Unit 3' },
+    { id: 'PLANT_04', name: 'Unit 4', location: 'Unit 4' }
   ];
 
-  // SIF Precursor Distribution Donut Data (Strictly matching reference: Red, Orange, Cyan, Teal, Blue, Slate)
-  const precursorDistributionData = [
-    { name: 'Line of Fire', value: 28, count: 510, color: '#EF4444' },
-    { name: 'Energy Isolation', value: 21, count: 382, color: '#F97316' },
-    { name: 'Working at Height', value: 17, count: 309, color: '#06B6D4' },
-    { name: 'Lifting Operations', value: 13, count: 237, color: '#10B981' },
-    { name: 'Confined Space', value: 9, count: 164, color: '#3B82F6' },
-    { name: 'Other', value: 12, count: 218, color: '#64748B' },
-  ];
+  // 4. Day-Wise Incident & SIF Precursor Trajectory Across the 4 Sites (Dynamically sourced from uploaded records starting from today)
+  const siteDayWiseData = React.useMemo(() => {
+    const reports = storeState.reports || [];
+    const today = getTodayDateString();
 
-  // 4 Critical Alerts for Dashboard Center Card
-  const summaryAlerts = [
+    const formatDate = (isoStr) => {
+      try {
+        const parts = isoStr.split('-');
+        if (parts.length === 3) {
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const mIdx = parseInt(parts[1], 10) - 1;
+          return `${parseInt(parts[2], 10)} ${monthNames[mIdx] || 'Sep'}`;
+        }
+      } catch (e) {}
+      return isoStr;
+    };
+
+    const getUnitCount = (list, unitNum) => {
+      return list.filter(r => {
+        const loc = `${r.location || ''} ${r.facility_unit || ''}`.toLowerCase();
+        return loc.includes(`unit ${unitNum}`) || loc.includes(`plant 0${unitNum}`) || loc.includes(`unit${unitNum}`);
+      }).length;
+    };
+
+    const uniqueDates = [...new Set(reports.map(r => r.report_date || today))].sort();
+
+    if (uniqueDates.length >= 4) {
+      return uniqueDates.slice(-6).map(dStr => {
+        const dReports = reports.filter(r => (r.report_date || today) === dStr);
+        return {
+          day: formatDate(dStr),
+          plant01: getUnitCount(dReports, 1),
+          plant02: getUnitCount(dReports, 2),
+          plant03: getUnitCount(dReports, 3),
+          plant04: getUnitCount(dReports, 4),
+        };
+      });
+    }
+
+    const d3 = getTodayDateString(-3);
+    const d2 = getTodayDateString(-2);
+    const d1 = getTodayDateString(-1);
+    const d0 = today;
+
+    const u1 = getUnitCount(reports, 1);
+    const u2 = getUnitCount(reports, 2);
+    const u3 = getUnitCount(reports, 3);
+    const u4 = getUnitCount(reports, 4);
+
+    return [
+      { day: formatDate(d3), plant01: Math.max(0, Math.floor(u1 * 0.4)), plant02: Math.max(0, Math.floor(u2 * 0.2)), plant03: Math.max(0, Math.floor(u3 * 0.6)), plant04: Math.max(0, Math.floor(u4 * 0.2)) },
+      { day: formatDate(d2), plant01: Math.max(0, Math.floor(u1 * 0.6)), plant02: Math.max(0, Math.floor(u2 * 0.8)), plant03: Math.max(0, Math.floor(u3 * 0.4)), plant04: Math.max(0, Math.floor(u4 * 0.6)) },
+      { day: formatDate(d1), plant01: Math.max(0, Math.floor(u1 * 0.8)), plant02: Math.max(0, Math.floor(u2 * 0.6)), plant03: Math.max(0, Math.floor(u3 * 0.8)), plant04: Math.max(0, Math.floor(u4 * 0.4)) },
+      { day: `${formatDate(d0)} (Today)`, plant01: u1, plant02: u2, plant03: u3, plant04: u4 }
+    ];
+  }, [storeState.reports]);
+
+  // Max count for LineChart YAxis
+  const maxTrajectoryCount = React.useMemo(() => {
+    if (!siteDayWiseData || siteDayWiseData.length === 0) return 6;
+    const maxVal = Math.max(5, ...siteDayWiseData.flatMap(d => [d.plant01 || 0, d.plant02 || 0, d.plant03 || 0, d.plant04 || 0]));
+    return maxVal + 1;
+  }, [siteDayWiseData]);
+
+  // Critical Weak Signals Data with rich early precursor telemetry
+  const criticalWeakSignalsData = [
     {
-      id: 'ALT-101',
-      severity: 'CRITICAL',
-      title: 'Worker exposed to suspended load',
-      location: 'Plant 03 • Crane Operations',
+      id: 'SIG-01',
+      title: 'Separator Manifold B-12 Gasket Blow-by',
+      facility: 'Unit 2',
+      severity: 'CRITICAL PRECURSOR',
+      severityColor: 'rose',
       riskScore: 94,
-      timeAgo: '8 min ago'
+      hazardType: 'Pressure Containment',
+      anomaly: 'Micro-acoustic weepage & 2.8-bar differential spike across primary seal under 450 PSI.',
+      barrierStatus: 'Primary Gasket Seal Breached',
+      preventativeAction: 'Mandate ultrasonic wall probe & emergency seal flange gasket swap before next shift.',
+      timestamp: 'Today, 02:40 PM',
+      signalCode: 'WS-PRS-881'
     },
     {
-      id: 'ALT-102',
-      severity: 'CRITICAL',
-      title: 'Energy isolation control not verified',
-      location: 'Plant 01 • Maintenance',
+      id: 'SIG-02',
+      title: 'Rig 04 Crane Synthetic Hoist Sling Fraying',
+      facility: 'Unit 3',
+      severity: 'CRITICAL PRECURSOR',
+      severityColor: 'rose',
+      riskScore: 96,
+      hazardType: 'Lifting & Rigging',
+      anomaly: '4-ton casing pipe lift rope strand slippage detected directly above crew drill floor.',
+      barrierStatus: 'Lifting Sling Strand Integrity Failed',
+      preventativeAction: 'Quarantine sling lot #R-884, mandate hard drop-zone exclusion & wire re-rigging.',
+      timestamp: 'Today, 11:15 AM',
+      signalCode: 'WS-LFT-402'
+    },
+    {
+      id: 'SIG-03',
+      title: '11kV Substation Switchgear LOTO Bypass',
+      facility: 'Unit 1',
+      severity: 'HIGH WEAK SIGNAL',
+      severityColor: 'amber',
       riskScore: 91,
-      timeAgo: '24 min ago'
+      hazardType: 'Electrical Arc-Flash',
+      anomaly: 'Feeder breaker cubicle unlatched without secondary zero-energy verification ground hook.',
+      barrierStatus: 'Procedural LOTO Compromised',
+      preventativeAction: 'Enforce dual-custody physical padlock protocol and audit permit-to-work signoffs.',
+      timestamp: 'Yesterday, 04:30 PM',
+      signalCode: 'WS-ELE-109'
     },
     {
-      id: 'ALT-103',
-      severity: 'HIGH',
-      title: 'Fall protection gap detected',
-      location: 'Plant 02 • Work at Height',
-      riskScore: 86,
-      timeAgo: '42 min ago'
-    },
-    {
-      id: 'ALT-104',
-      severity: 'HIGH',
-      title: 'Vehicle-pedestrian interaction risk',
-      location: 'Plant 04 • Logistics',
+      id: 'SIG-04',
+      title: 'Centrifugal Gas Compressor Bearing Harmonics',
+      facility: 'Unit 2',
+      severity: 'ELEVATING ANOMALY',
+      severityColor: 'cyan',
       riskScore: 82,
-      timeAgo: '1 hr ago'
+      hazardType: 'Vibration & Mechanical',
+      anomaly: '14% harmonic radial vibration surge on drive-end bearing over 72-hour operational baseline.',
+      barrierStatus: 'Mechanical Vibration Tolerance Degrading',
+      preventativeAction: 'Inspect lube oil contamination, schedule ultrasonic spectral vibration analysis.',
+      timestamp: 'Yesterday, 09:12 AM',
+      signalCode: 'WS-VIB-315'
     }
   ];
 
-  // Latest 5 Recent Safety Reports
-  const summaryReports = [
-    {
-      id: 'SR-2026-1245',
-      type: 'Near Miss',
-      location: 'Plant 03',
-      risk: 'High',
-      score: 94,
-      status: 'Open'
-    },
-    {
-      id: 'SR-2026-1244',
-      type: 'Unsafe Condition',
-      location: 'Plant 01',
-      risk: 'Critical',
-      score: 91,
-      status: 'Open'
-    },
-    {
-      id: 'SR-2026-1243',
-      type: 'Unsafe Act',
-      location: 'Plant 02',
-      risk: 'High',
-      score: 86,
-      status: 'Under Review'
-    },
-    {
-      id: 'SR-2026-1242',
-      type: 'Safety Observation',
-      location: 'Plant 04',
-      risk: 'Medium',
-      score: 78,
-      status: 'Closed'
-    },
-    {
-      id: 'SR-2026-1241',
-      type: 'Near Miss',
-      location: 'Plant 05',
-      risk: 'Medium',
-      score: 74,
-      status: 'Closed'
-    }
-  ];
-
-  // Custom Dark Tooltip for Risk Chart (Amber/Gold & Cyan/Blue)
-  const CustomRiskTooltip = ({ active, payload, label }) => {
+  // Custom Dark Tooltip for Multi-Line Spline Trajectory Chart (4 Units)
+  const CustomTrajectoryTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-[#051423]/95 backdrop-blur-md border border-slate-700/80 p-2.5 rounded-xl shadow-xl text-xs space-y-1">
-          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1">{label} Exposure</div>
-          <div className="flex items-center gap-2 text-amber-400">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>Overall Safety: <strong className="text-white">{payload[0]?.value}</strong></span>
+        <div className="bg-[#0F172A] text-white border border-slate-700/80 p-3 rounded-xl shadow-2xl text-xs space-y-2 min-w-[230px]">
+          <div className="font-bold text-slate-200 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+            <span className="font-mono text-[#FF5A36] font-bold">{label}</span>
+            <span className="text-[10px] text-slate-400 font-mono">4 Monitored Units</span>
           </div>
-          <div className="flex items-center gap-2 text-cyan-400">
-            <span className="w-2 h-2 rounded-full bg-cyan-400" />
-            <span>SIF Risk: <strong className="text-white">{payload[1]?.value}</strong></span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomPrecursorTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-[#051423]/95 backdrop-blur-md border border-slate-700/80 p-2 rounded-xl shadow-xl text-xs">
-          <div className="font-bold text-white flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }} />
-            {data.name}
-          </div>
-          <div className="text-slate-300 mt-0.5">
-            <strong>{data.value}%</strong> ({data.count} Precursors)
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div className="p-4 sm:p-5 lg:p-6 space-y-4 max-w-[1680px] mx-auto text-slate-100 animate-in fade-in duration-200 select-none">
-
-      {/* ================= 1. REFINERY HERO BANNER (MATCHING REFERENCE IMAGE) ================= */}
-      {/* Refinery image/video is strictly positioned on the RIGHT side of the banner with smooth fade to navy */}
-      <section className="relative overflow-hidden rounded-2xl bg-[#071322] border border-slate-800/80 shadow-2xl min-h-[175px] flex items-center">
-        
-        {/* RIGHT SIDE: Industrial Refinery Visual from existing project assets */}
-        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-3/5 md:w-1/2 lg:w-7/12 pointer-events-none select-none overflow-hidden">
-          <video
-            src="/assets/videos/hero-video.mp4"
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover object-right sm:object-center opacity-80"
-          />
-          {/* Subtle gradient overlays to seamlessly blend into deep navy card background on the left */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#071322] via-[#071322]/80 to-transparent w-3/5" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#071322]/80 via-transparent to-[#071322]/40" />
-          <div className="absolute inset-0 bg-[#071322]/20" />
-        </div>
-
-        {/* LEFT SIDE: Safety Intelligence Content */}
-        <div className="relative z-10 w-full lg:w-3/5 p-5 sm:p-7 flex flex-col justify-center space-y-2.5">
-          <div className="flex items-start gap-3.5">
-            {/* Golden Shield Icon */}
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/10">
-              <ShieldCheck className="w-6 h-6 text-amber-400 stroke-[2.2]" />
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-[10.5px] font-black uppercase tracking-widest text-amber-400 font-mono">
-                SAFETY INTELLIGENCE
-              </div>
-              <h2 className="text-xl sm:text-2xl lg:text-[26px] font-black font-heading text-white tracking-tight leading-tight">
-                Detect Risk Before It Becomes an Incident
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-                AI-powered safety intelligence for identifying Serious Injury &amp; Fatality precursors before they escalate.
-              </p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 pt-1 pl-[58px]">
-            <button
-              onClick={() => handleNav('/ai-analysis')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-extrabold shadow-md shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
-            >
-              <span>Analyze Safety Report</span>
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-            </button>
-
-            <button
-              onClick={() => handleNav('/critical-alerts')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#091626]/90 hover:bg-[#0e213a] text-slate-200 hover:text-white text-xs sm:text-sm font-semibold border border-slate-700/80 hover:border-slate-600 transition-all cursor-pointer backdrop-blur-sm"
-            >
-              <span>View Critical Alerts</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 2. SIX KPI CARDS (SINGLE ROW WITH SPARKLINES) ================= */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
-        
-        {/* KPI 1: TOTAL SAFETY REPORTS */}
-        <div 
-          onClick={() => handleNav('/reports')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-amber-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Total Safety Reports
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center">
-              <FileText className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              12,450
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
-                +12.8%
-              </span>
-              <span className="text-[9.5px] text-slate-500">vs last month</span>
-            </div>
-            {/* Green Sparkline */}
-            <svg className="w-14 h-6 text-emerald-400 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 18 L14 15 L26 19 L38 9 L50 11 L58 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* KPI 2: SIF PRECURSORS */}
-        <div 
-          onClick={() => handleNav('/sif-precursors')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-rose-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              SIF Precursors
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
-              <ShieldAlert className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              1,820
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
-                +8.4%
-              </span>
-              <span className="text-[9.5px] text-slate-500">detected by AI</span>
-            </div>
-            {/* Red Sparkline */}
-            <svg className="w-14 h-6 text-rose-500 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 19 L15 17 L27 12 L39 16 L49 8 L58 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* KPI 3: CRITICAL RISKS */}
-        <div 
-          onClick={() => handleNav('/critical-alerts')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-amber-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Critical Risks
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-              <AlertTriangle className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              38
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
-                <TrendingDown className="w-3 h-3" />
-                -14.2%
-              </span>
-              <span className="text-[9.5px] text-slate-500">vs last month</span>
-            </div>
-            {/* Amber Sparkline */}
-            <svg className="w-14 h-6 text-amber-400 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 20 L16 16 L28 17 L40 10 L50 12 L58 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* KPI 4: AI CONFIDENCE */}
-        <div 
-          onClick={() => handleNav('/ai-analysis')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-blue-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              AI Confidence
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
-              <Cpu className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              94.7%
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
-                +2.1%
-              </span>
-              <span className="text-[9.5px] text-slate-500">average confidence</span>
-            </div>
-            {/* Cyan Sparkline */}
-            <svg className="w-14 h-6 text-cyan-400 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 17 L14 14 L26 15 L38 8 L48 9 L58 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* KPI 5: OPEN ACTIONS */}
-        <div 
-          onClick={() => handleNav('/corrective-actions')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-cyan-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Open Actions
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center">
-              <CheckSquare className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              126
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-amber-400">
-                18 overdue
-              </span>
-              <span className="text-[9.5px] text-slate-500">active CAPA</span>
-            </div>
-            {/* Teal Sparkline */}
-            <svg className="w-14 h-6 text-teal-400 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 18 L15 19 L27 13 L39 15 L50 7 L58 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* KPI 6: SAFETY SCORE */}
-        <div 
-          onClick={() => handleNav('/analytics')}
-          className="group rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 hover:border-emerald-500/40 p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Safety Score
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-white font-heading tracking-tight">
-              91.4%
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
-                +5.6%
-              </span>
-              <span className="text-[9.5px] text-slate-500">organization score</span>
-            </div>
-            {/* Green Sparkline */}
-            <svg className="w-14 h-6 text-emerald-400 shrink-0" viewBox="0 0 60 24" fill="none">
-              <path d="M2 19 L15 16 L27 18 L39 11 L49 12 L58 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-
-      </section>
-
-      {/* ================= 3. MAIN ANALYTICS ROW (3-COLUMN BALANCED STRUCTURE) ================= */}
-      {/* 5 cols / 3.5 cols / 3.5 cols */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        {/* 1. Safety / Risk Trend (5 cols) */}
-        <div className="lg:col-span-5 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center">
-                <Activity className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold font-heading text-white tracking-tight">
-                  Safety / Risk Trend
-                </h3>
-                <p className="text-[10.5px] text-slate-400">Overall safety performance trend</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 text-[10.5px] px-2.5 py-1 rounded-lg bg-[#081729] border border-slate-700/80 text-slate-300">
-                <span>Last 7 Months</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full h-48 sm:h-52 pt-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={riskOverviewData} margin={{ top: 10, right: 25, left: -25, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="overallGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="sifGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#17263C" vertical={false} />
-                <XAxis dataKey="month" stroke="#64748B" fontSize={11} tickLine={false} axisLine={{ stroke: '#17263C' }} />
-                <YAxis stroke="#64748B" fontSize={11} tickLine={false} axisLine={{ stroke: '#17263C' }} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
-                <RechartsTooltip content={<CustomRiskTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="overallSafety" 
-                  stroke="#F59E0B" 
-                  strokeWidth={2.5} 
-                  fill="url(#overallGrad)" 
-                  dot={{ fill: '#F59E0B', r: 3 }}
-                  activeDot={{ r: 5, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="sifRisk" 
-                  stroke="#06B6D4" 
-                  strokeWidth={2.5} 
-                  fill="url(#sifGrad)" 
-                  dot={{ fill: '#06B6D4', r: 3 }}
-                  activeDot={{ r: 5, fill: '#06B6D4', stroke: '#fff', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Bottom Chart Legend */}
-          <div className="flex items-center gap-4 pt-2 border-t border-slate-800/70 text-[11px]">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" />
-              Overall Safety
-            </span>
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-sm bg-cyan-400 inline-block" />
-              SIF Risk
-            </span>
-          </div>
-        </div>
-
-        {/* 2. SIF Precursor Distribution (3.5 cols) */}
-        <div className="lg:col-span-3 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold font-heading text-white tracking-tight">
-                  SIF Precursor Distribution
-                </h3>
-                <p className="text-[10.5px] text-slate-400">Total precursors by category</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Donut Chart & Side Legend */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 my-1">
-            <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <RechartsTooltip content={<CustomPrecursorTooltip />} />
-                  <Pie
-                    data={precursorDistributionData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={58}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {precursorDistributionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="#061424" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-base font-black text-white font-heading">1,820</span>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Total Precursors</span>
-              </div>
-            </div>
-
-            {/* Vertical Legend on Right */}
-            <div className="flex-1 space-y-1.5 text-[11px] w-full">
-              {precursorDistributionData.map((item) => (
-                <div key={item.name} className="flex items-center justify-between gap-2 text-slate-300">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="truncate text-slate-300 text-[10.5px]">{item.name}</span>
-                  </div>
-                  <span className="font-mono font-bold text-slate-200 text-[11px]">{item.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Critical Alert Center (3.5 cols) */}
-        <div className="lg:col-span-4 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
-                <AlertOctagon className="w-3.5 h-3.5" />
-              </div>
-              <h3 className="text-sm font-bold font-heading text-white tracking-tight">
-                Critical Alert Center
-              </h3>
-            </div>
-            <button 
-              onClick={() => handleNav('/critical-alerts')}
-              className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-3 h-3 stroke-[2.5]" />
-            </button>
-          </div>
-
-          <div className="space-y-2 pt-2">
-            {summaryAlerts.map((alert) => (
-              <div 
-                key={alert.id}
-                onClick={() => handleNav('/critical-alerts')}
-                className="p-2.5 rounded-xl bg-[#081729]/80 hover:bg-[#0c223d] border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-3 cursor-pointer transition-all"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider shrink-0 ${
-                    alert.severity === 'CRITICAL' 
-                      ? 'bg-rose-500 text-white font-bold' 
-                      : 'bg-amber-500 text-slate-950 font-bold'
-                  }`}>
-                    {alert.severity}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-white truncate">{alert.title}</div>
-                    <div className="text-[10px] text-slate-400 truncate">{alert.location}</div>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <div className="text-[11px] font-mono font-bold text-rose-400">Risk {alert.riskScore}</div>
-                  <div className="text-[9.5px] text-slate-500">{alert.timeAgo}</div>
-                </div>
+          <div className="space-y-1.5">
+            {payload.map((entry, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5" style={{ color: entry.color }}>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                  <span>{entry.name}</span>
+                </span>
+                <strong className="text-white font-mono">{entry.value} Incidents</strong>
               </div>
             ))}
           </div>
         </div>
+      );
+    }
+    return null;
+  };
 
-      </section>
 
-      {/* ================= 4. LOWER SECTION (3-COLUMN BALANCED STRUCTURE) ================= */}
-      {/* 5 cols / 4 cols / 3 cols */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+  return (
+    <div className="p-4 sm:p-5 lg:p-6 space-y-4 max-w-[1680px] mx-auto text-slate-800 animate-in fade-in duration-200 select-none">
+
+      {/* ================= 1. REFINERY HERO BANNER (IMAGE REPLACES VIDEO) ================= */}
+      <section className="relative overflow-hidden rounded-2xl bg-[#081B38] border border-slate-700/60 shadow-md min-h-[220px] lg:min-h-[260px] flex items-center justify-between">
         
-        {/* 1. Recent Safety Reports (5 cols) */}
-        <div className="lg:col-span-5 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center">
-                <FileText className="w-3.5 h-3.5" />
-              </div>
-              <h3 className="text-sm font-bold font-heading text-white tracking-tight">
-                Recent Safety Reports
-              </h3>
-            </div>
+        {/* BACKGROUND IMAGE: Sunset Industrial Refinery (Replaces Video) */}
+        <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+          <img
+            src="/refinery-banner.png"
+            alt="PetroSafe Refinery at Sunset"
+            className="w-full h-full object-cover object-right"
+          />
+          {/* Deep Navy to Transparent Gradient Overlay on Left Half */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#071930] via-[#0A2446]/95 via-48% to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#071930]/60 via-transparent to-[#071930]/30" />
+        </div>
+
+        {/* LEFT HALF: Safety Intelligence Content & Interactive Actions */}
+        <div className="relative z-10 w-full lg:w-3/5 p-6 sm:p-8 lg:p-10 flex flex-col justify-center space-y-3 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[11px] font-bold tracking-wider uppercase w-fit">
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>SAFETY INTELLIGENCE</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black font-heading text-white tracking-tight leading-[1.18]">
+            Detect Risk Before It Becomes an <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-[#FF5A36] to-amber-400">Incident</span>
+          </h2>
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+            AI analysis has identified recurring safety signals in the maintenance area. Focus on electrical hazards and control failures.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button 
-              onClick={() => handleNav('/reports')}
-              className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer"
+              onClick={() => handleNav('/ai-analysis')} 
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF5A36] to-[#FFA133] hover:from-[#e54a26] hover:to-[#e6902b] text-white font-bold text-xs shadow-md shadow-orange-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span>View All</span>
-              <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Launch AI Analysis</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+            </button>
+            <button 
+              onClick={() => handleNav('/reports')} 
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900/50 hover:bg-slate-900/80 border border-white/20 text-white font-semibold text-xs transition-all cursor-pointer shadow-xs"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-300" />
+              <span>Browse All Reports</span>
             </button>
           </div>
-
-          <div className="overflow-x-auto pt-1">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-[10px] uppercase font-mono text-slate-400">
-                  <th className="pb-2 font-semibold">ID</th>
-                  <th className="pb-2 font-semibold">Type</th>
-                  <th className="pb-2 font-semibold">Location</th>
-                  <th className="pb-2 font-semibold">Risk</th>
-                  <th className="pb-2 font-semibold text-center">Score</th>
-                  <th className="pb-2 font-semibold text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {summaryReports.map((rep) => (
-                  <tr 
-                    key={rep.id} 
-                    onClick={() => handleNav('/reports')}
-                    className="hover:bg-slate-900/40 cursor-pointer transition-colors"
-                  >
-                    <td className="py-2.5 font-mono text-slate-300 text-[11px]">{rep.id}</td>
-                    <td className="py-2.5 text-slate-300 text-[11.5px]">{rep.type}</td>
-                    <td className="py-2.5 text-slate-400 text-[11.5px]">{rep.location}</td>
-                    <td className="py-2.5">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                        rep.risk === 'Critical'
-                          ? 'bg-rose-500 text-white'
-                          : rep.risk === 'High'
-                            ? 'bg-amber-500 text-slate-950'
-                            : 'bg-yellow-500 text-slate-950'
-                      }`}>
-                        {rep.risk}
-                      </span>
-                    </td>
-                    <td className="py-2.5 font-mono font-bold text-center text-slate-200 text-[11px]">{rep.score}</td>
-                    <td className="py-2.5 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[9.5px] font-medium ${
-                        rep.status === 'Open'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : rep.status === 'Under Review'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        {rep.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
 
-        {/* 2. AI Safety Intelligence (4 cols) */}
-        <div className="lg:col-span-4 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl relative overflow-hidden">
-          <div>
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-800/80">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-              <h3 className="text-sm font-bold font-heading text-white">AI Safety Intelligence</h3>
-            </div>
-
-            {/* Split layout: Text on left, Golden Constellation graphic on right */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3">
-              <div className="sm:col-span-7 space-y-3">
-                <div>
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Emerging Risk Detected</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                    Line-of-fire related observations have increased by <strong className="text-white">18%</strong> across Plant 03 during the last 30 days.
-                  </p>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                    <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Recommended Focus</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                    Review lifting exclusion zones and verify critical controls before the next shift.
-                  </p>
-                </div>
-
-                <div className="pt-1">
-                  <button
-                    onClick={() => handleNav('/ai-analysis')}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer transition-all"
-                  >
-                    <span>View AI Analysis</span>
-                    <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Golden Constellation / AI Network graphic */}
-              <div className="sm:col-span-5 flex items-center justify-center relative min-h-[140px] rounded-xl overflow-hidden bg-[#071322]/80 border border-slate-800/80 p-2">
-                {/* SVG Golden Neural Network with AI Emblem */}
-                <svg className="w-full h-full text-amber-400/80" viewBox="0 0 160 140" fill="none">
-                  {/* Network lines */}
-                  <line x1="25" y1="35" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.4" />
-                  <line x1="135" y1="35" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.4" />
-                  <line x1="25" y1="105" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.4" />
-                  <line x1="135" y1="105" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.4" />
-                  <line x1="25" y1="35" x2="25" y2="105" stroke="#F59E0B" strokeWidth="0.8" strokeOpacity="0.25" />
-                  <line x1="135" y1="35" x2="135" y2="105" stroke="#F59E0B" strokeWidth="0.8" strokeOpacity="0.25" />
-                  <line x1="80" y1="20" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1" strokeOpacity="0.3" />
-                  <line x1="80" y1="120" x2="80" y2="70" stroke="#F59E0B" strokeWidth="1" strokeOpacity="0.3" />
-
-                  {/* Network Nodes */}
-                  <circle cx="25" cy="35" r="4" fill="#F59E0B" fillOpacity="0.7" />
-                  <circle cx="135" cy="35" r="4" fill="#F59E0B" fillOpacity="0.7" />
-                  <circle cx="25" cy="105" r="4" fill="#F59E0B" fillOpacity="0.7" />
-                  <circle cx="135" cy="105" r="4" fill="#F59E0B" fillOpacity="0.7" />
-                  <circle cx="80" cy="20" r="3" fill="#F59E0B" fillOpacity="0.6" />
-                  <circle cx="80" cy="120" r="3" fill="#F59E0B" fillOpacity="0.6" />
-
-                  {/* Central AI Node */}
-                  <circle cx="80" cy="70" r="18" fill="#061424" stroke="#F59E0B" strokeWidth="2" />
-                  <circle cx="80" cy="70" r="23" stroke="#F59E0B" strokeWidth="1" strokeOpacity="0.3" strokeDasharray="3 3" />
-                  <text x="80" y="75" textAnchor="middle" fill="#F59E0B" fontSize="13" fontWeight="900" fontFamily="sans-serif">AI</text>
-                </svg>
-              </div>
-            </div>
-          </div>
+        {/* RIGHT HALF: "Safer Tomorrow Together" artistic overlay matching Image 2 */}
+        <div className="relative z-10 pr-10 xl:pr-14 pointer-events-none hidden lg:block select-none text-right">
+          <p className="text-white font-serif italic text-3xl xl:text-4xl tracking-wide drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] leading-tight opacity-95">
+            Safer<br />Tomorrow<br />Together
+          </p>
+          <div className="w-16 h-1 bg-[#FF5A36] mt-2.5 ml-auto rounded-full shadow-md" />
         </div>
+      </section>
 
-        {/* 3. Organization Safety Score (3 cols) */}
-        <div className="lg:col-span-3 rounded-2xl bg-[#061424]/90 backdrop-blur-md border border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between shadow-xl">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-800/80">
-            <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-              <ShieldCheck className="w-3.5 h-3.5" />
+      {/* ================= 2. MAIN ANALYTICS ROW (HAZARD CATEGORIES & SIF DONUT) ================= */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        
+        {/* 1. Hazard Categories Breakdown Bar Chart (7 cols) */}
+        <div className="lg:col-span-7 rounded-2xl bg-white border border-[#EAE6E1] p-5 flex flex-col justify-between shadow-sm min-h-[420px] transition-all text-slate-800">
+          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200/50 text-[#FF5A36] flex items-center justify-center">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold font-heading text-slate-900 tracking-tight">
+                  Hazard Categories
+                </h3>
+                <p className="text-[10.5px] text-slate-500">Distribution across {hazardCategoryData.length} industrial hazard types</p>
+              </div>
             </div>
-            <h3 className="text-sm font-bold font-heading text-white tracking-tight">
-              Organization Safety Score
-            </h3>
+
+            <div className="flex items-center gap-2">
+              {activeHazard && (
+                <button 
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 text-[10.5px] px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-200/60 text-[#FF5A36] font-mono font-bold hover:bg-orange-100 transition-all cursor-pointer shadow-2xs"
+                  title="Click to reset filter"
+                >
+                  <span>{activeHazard} Active</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            {/* Circular Gauge Ring */}
-            <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" stroke="#17263C" strokeWidth="8" fill="none" />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  stroke="#10B981"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray="251.32"
-                  strokeDashoffset={251.32 * (1 - 0.914)}
-                  strokeLinecap="round"
+          <div className="w-full h-72 sm:h-80 lg:h-[310px] pt-2 cursor-pointer flex-1 flex items-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart 
+                data={hazardCategoryData} 
+                margin={{ top: 16, right: 16, left: -20, bottom: 4 }}
+                barCategoryGap="16%"
+                onClick={(state) => {
+                  if (state && state.activePayload && state.activePayload[0]) {
+                    handleBarClick(state.activePayload[0].payload);
+                  }
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis 
+                  dataKey="shortName" 
+                  stroke="#94A3B8" 
+                  fontSize={11} 
+                  tickLine={false} 
+                  axisLine={{ stroke: '#E2E8F0' }} 
+                  dy={4}
                 />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-black font-heading text-white tracking-tight">91.4%</span>
-              </div>
+                <YAxis 
+                  stroke="#94A3B8" 
+                  fontSize={11} 
+                  tickLine={false} 
+                  axisLine={{ stroke: '#E2E8F0' }} 
+                  domain={[0, maxHazardCount]} 
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomHazardTooltip />} />
+                <Bar 
+                  dataKey="sifHigh" 
+                  name="SIF Precursor (High)" 
+                  stackId="hazards" 
+                  radius={[0, 0, 4, 4]} 
+                  barSize={46}
+                >
+                  {hazardCategoryData.map((entry) => (
+                    <Cell 
+                      key={`sif-${entry.shortName}`} 
+                      fill="#FF5A36" 
+                      opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
+                      stroke={activeHazard === entry.shortName ? '#FF5A36' : 'none'}
+                      strokeWidth={activeHazard === entry.shortName ? 2 : 0}
+                    />
+                  ))}
+                </Bar>
+                <Bar 
+                  dataKey="nonSif" 
+                  name="Non-SIF / Weak Signal" 
+                  stackId="hazards" 
+                  radius={[4, 4, 0, 0]} 
+                  barSize={46}
+                >
+                  {hazardCategoryData.map((entry) => (
+                    <Cell 
+                      key={`nonsif-${entry.shortName}`} 
+                      fill="#10B981" 
+                      opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
+                      stroke={activeHazard === entry.shortName ? '#10B981' : 'none'}
+                      strokeWidth={activeHazard === entry.shortName ? 2 : 0}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Bottom Chart Legend */}
+          <div className="flex items-center justify-between pt-2.5 border-t border-stone-100 text-[11px]">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#FF5A36] inline-block" />
+                SIF Precursors
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#10B981] inline-block" />
+                Non-SIF / Weak Signal
+              </span>
             </div>
-
-            {/* Breakdown Progress Bars */}
-            <div className="flex-1 space-y-2 text-[10px] w-full">
-              <div>
-                <div className="flex justify-between text-slate-300 mb-0.5">
-                  <span className="text-[10px]">Critical Controls</span>
-                  <span className="font-bold text-slate-200 font-mono">94%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-teal-400 rounded-full" style={{ width: '94%' }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-slate-300 mb-0.5">
-                  <span className="text-[10px]">Training Compliance</span>
-                  <span className="font-bold text-slate-200 font-mono">89%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-400 rounded-full" style={{ width: '89%' }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-slate-300 mb-0.5">
-                  <span className="text-[10px]">Corrective Actions</span>
-                  <span className="font-bold text-slate-200 font-mono">91%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-cyan-400 rounded-full" style={{ width: '91%' }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-slate-300 mb-0.5">
-                  <span className="text-[10px]">SIF Prevention</span>
-                  <span className="font-bold text-slate-200 font-mono">93%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-400 rounded-full" style={{ width: '93%' }} />
-                </div>
-              </div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10.5px] font-mono text-slate-500">
+                Total: <strong className="text-slate-900 font-bold">{activeHazard ? filteredReports.length : hazardCategoryData.reduce((acc, c) => acc + c.total, 0)}</strong> Incidents
+              </span>
             </div>
           </div>
+        </div>
+
+        {/* 2. SIF vs Non-SIF vs Near Misses Donut Chart (5 cols) */}
+        <div className="lg:col-span-5 rounded-2xl bg-white border border-[#EAE6E1] p-5 flex flex-col justify-between shadow-sm min-h-[420px] transition-all text-slate-800">
+          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200/50 text-[#FF5A36] flex items-center justify-center">
+                <PieChartIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold font-heading text-slate-900 tracking-tight">
+                  SIF vs Non-SIF vs Near Miss
+                </h3>
+                <p className="text-[10.5px] text-slate-500">Classification ratio of logged safety reports</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {activeClassification && (
+                <button 
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 text-[10.5px] px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-200/60 text-[#FF5A36] font-mono font-bold hover:bg-orange-100 transition-all cursor-pointer shadow-2xs"
+                  title="Click to reset filter"
+                >
+                  <span>{activeClassification.split(' ')[0]} Active</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Centered Large Interactive Donut Chart */}
+          <div className="flex flex-col items-center justify-center my-auto py-2 gap-3 w-full flex-1">
+            <div className="relative w-64 h-64 sm:w-72 sm:h-72 lg:w-[310px] lg:h-[310px] shrink-0 flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={classificationDistributionData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={76}
+                    outerRadius={122}
+                    paddingAngle={4}
+                    dataKey="value"
+                    onClick={(entry) => handleClassificationClick(entry.name)}
+                    onMouseEnter={(_, index) => setDonutHoverIndex(index)}
+                    onMouseLeave={() => setDonutHoverIndex(null)}
+                    className="cursor-pointer outline-none"
+                  >
+                    {classificationDistributionData.map((entry, index) => {
+                      const isHovered = donutHoverIndex === index;
+                      const isSelected = activeClassification === entry.name;
+                      const isFaded = (activeClassification && !isSelected) || (donutHoverIndex !== null && !isHovered && !isSelected);
+                      return (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.color} 
+                          stroke="#FFFFFF" 
+                          strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
+                          opacity={isFaded ? 0.35 : 1}
+                          style={{
+                            filter: isSelected || isHovered ? `drop-shadow(0 4px 12px ${entry.color}40)` : 'none',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer'
+                          }}
+                        />
+                      );
+                    })}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Dynamic Interactive Center Readout */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all duration-200 select-none">
+                {donutHoverIndex !== null ? (
+                  <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
+                    <span className="text-4xl sm:text-5xl font-black font-heading text-slate-900 tracking-tight block">
+                      {classificationDistributionData[donutHoverIndex].count}
+                    </span>
+                    <span 
+                      className="text-xs font-bold uppercase tracking-wider block max-w-[130px] mx-auto truncate mt-1"
+                      style={{ color: classificationDistributionData[donutHoverIndex].color }}
+                    >
+                      {classificationDistributionData[donutHoverIndex].name}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
+                      {classificationDistributionData[donutHoverIndex].value}% of total
+                    </span>
+                  </div>
+                ) : activeClassification ? (
+                  <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
+                    <span className="text-4xl sm:text-5xl font-black font-heading text-[#FF5A36] tracking-tight block">
+                      {classificationDistributionData.find(c => c.name === activeClassification)?.count || 0}
+                    </span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#FF5A36] block max-w-[130px] mx-auto truncate mt-1">
+                      {activeClassification}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
+                      {classificationDistributionData.find(c => c.name === activeClassification)?.value || 0}%
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-center px-3">
+                    <span className="text-4xl sm:text-5xl font-black text-slate-900 font-heading tracking-tight block">{summaryReports.length}</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mt-1">Reports</span>
+                    <span className="text-[10.5px] font-mono text-[#FF5A36] font-semibold block mt-0.5">Analyzed</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Interactive Centered Pills with richer spacing and stats */}
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2 w-full">
+              {classificationDistributionData.map((item, index) => {
+                const isSelected = activeClassification === item.name;
+                const isHovered = donutHoverIndex === index;
+                return (
+                  <button 
+                    key={item.name} 
+                    onClick={() => handleClassificationClick(item.name)}
+                    onMouseEnter={() => setDonutHoverIndex(index)}
+                    onMouseLeave={() => setDonutHoverIndex(null)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                      isSelected 
+                        ? 'bg-orange-50 border-orange-200 text-[#FF5A36] font-bold shadow-xs scale-105' 
+                        : isHovered
+                          ? 'bg-stone-100 border-stone-300 text-slate-900 scale-102 shadow-2xs'
+                          : 'bg-[#FBF9F6] border-[#EAE6E1] text-slate-700 hover:bg-stone-100 hover:border-stone-300'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs font-semibold">{item.name}</span>
+                    <span className="font-mono text-xs text-slate-500 font-bold">({item.count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
 
       </section>
 
-      {/* ================= 5. FOOTER (MATCHING REFERENCE IMAGE) ================= */}
-      <footer className="pt-2 pb-1 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
+      {/* ================= 3. SIF-WISE TRAJECTORY (FULL WIDTH) ================= */}
+      <section className="w-full">
+        <div className="w-full rounded-2xl bg-white border border-[#EAE6E1] p-6 sm:p-7 shadow-sm transition-all text-slate-800 space-y-4">
+          
+          {/* Chart Header */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#FF5A36]">
+                  SIF-WISE TRAJECTORY
+                </span>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs text-slate-500 font-medium">4 Monitored Operating Units</span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-bold font-heading text-slate-900 tracking-tight mt-1">
+                Daily Incident &amp; SIF Velocity Across Units
+              </h3>
+            </div>
+
+            {/* Colored dots legend for the 4 Units */}
+            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+              <span className="flex items-center gap-2 text-slate-700 bg-[#FAF8F5] px-3 py-1.5 rounded-lg border border-[#EAE6E1]">
+                <span className="w-3 h-3 rounded-full bg-[#10B981] inline-block shadow-2xs" />
+                Unit 1
+              </span>
+              <span className="flex items-center gap-2 text-slate-700 bg-[#FAF8F5] px-3 py-1.5 rounded-lg border border-[#EAE6E1]">
+                <span className="w-3 h-3 rounded-full bg-[#FF5A36] inline-block shadow-2xs" />
+                Unit 2
+              </span>
+              <span className="flex items-center gap-2 text-slate-700 bg-[#FAF8F5] px-3 py-1.5 rounded-lg border border-[#EAE6E1]">
+                <span className="w-3 h-3 rounded-full bg-[#3B82F6] inline-block shadow-2xs" />
+                Unit 3
+              </span>
+              <span className="flex items-center gap-2 text-slate-700 bg-[#FAF8F5] px-3 py-1.5 rounded-lg border border-[#EAE6E1]">
+                <span className="w-3 h-3 rounded-full bg-[#64748B] inline-block shadow-2xs" />
+                Unit 4
+              </span>
+            </div>
+          </div>
+
+          {/* Spline Curve Multi-Line Chart (Full Width 4 Units Trajectory) */}
+          <div className="w-full h-72 sm:h-80 pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart 
+                data={siteDayWiseData}
+                margin={{ top: 15, right: 25, left: -10, bottom: 5 }}
+              >
+                <CartesianGrid stroke="#F1F5F9" strokeDasharray="0" vertical={true} horizontal={true} />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#94A3B8" 
+                  fontSize={12} 
+                  tickLine={false} 
+                  axisLine={{ stroke: '#E2E8F0' }}
+                  dy={8}
+                />
+                <YAxis 
+                  stroke="#94A3B8" 
+                  fontSize={12} 
+                  tickLine={false} 
+                  axisLine={{ stroke: '#E2E8F0' }}
+                  domain={[0, maxTrajectoryCount]}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTrajectoryTooltip />} />
+                <Line 
+                  type="monotone" 
+                  dataKey="plant01" 
+                  name="Unit 1" 
+                  stroke="#10B981" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#10B981', stroke: '#ffffff', strokeWidth: 2 }} 
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="plant02" 
+                  name="Unit 2" 
+                  stroke="#FF5A36" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#FF5A36', stroke: '#ffffff', strokeWidth: 2 }} 
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="plant03" 
+                  name="Unit 3" 
+                  stroke="#3B82F6" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#3B82F6', stroke: '#ffffff', strokeWidth: 2 }} 
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="plant04" 
+                  name="Unit 4" 
+                  stroke="#64748B" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#64748B', stroke: '#ffffff', strokeWidth: 2 }} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ================= 5. FOOTER ================= */}
+      <footer className="pt-2 pb-1 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
         <div className="hidden sm:block">
           {/* subtle left spacer */}
         </div>
@@ -877,8 +1056,8 @@ export default function DashboardView({ onNavigate }) {
           <span className="text-slate-400">
             Last data synchronization: 2 minutes ago
           </span>
-          <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             All systems operational
           </span>
         </div>
