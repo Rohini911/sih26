@@ -1571,7 +1571,7 @@ export default function AIAnalysisView() {
                     <Radio className="w-5 h-5" />
                   </div>
                   <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
-                    Weak Signals Surveillance
+                    Weak Signals Surveillance {detectedWeakSignals.length > 0 ? `(${detectedWeakSignals.length} Detected in Observation)` : ''}
                   </h3>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
@@ -1603,7 +1603,7 @@ export default function AIAnalysisView() {
                       No Weak Signals Active in Current Record ("{analysisResult?.report_name || 'Non-Safety Observation'}")
                     </div>
                     <p className="text-slate-600 text-[11.5px] mt-0.5 leading-relaxed">
-                      This input contains no operational hazard telemetry. The {allWeakSignals.length} latent precursor patterns below are cross-facility surveillance patterns active across other units in the safety register.
+                      This input contains no operational hazard telemetry.
                     </p>
                   </div>
                 </div>
@@ -1614,7 +1614,7 @@ export default function AIAnalysisView() {
                   </div>
                   <div>
                     <div className="font-bold text-orange-950 text-xs uppercase tracking-wide flex items-center gap-2">
-                      <span>{detectedWeakSignals.length} Active Weak Signal Pattern{detectedWeakSignals.length > 1 ? 's' : ''} Detected in Current Observation!</span>
+                      <span>{detectedWeakSignals.length} Active Weak Signal Pattern{detectedWeakSignals.length > 1 ? 's' : ''} Detected in Current Observation</span>
                     </div>
                     <p className="text-orange-900/90 text-[11.5px] mt-0.5 leading-relaxed">
                       AI identified direct precursor matches in this observation correlating with recurring barrier failure signals.
@@ -1631,13 +1631,13 @@ export default function AIAnalysisView() {
                       Zero Weak Signal Precursors in Current Record (Isolated Event)
                     </div>
                     <p className="text-emerald-800 text-[11.5px] mt-0.5 leading-relaxed">
-                      Showing general plant surveillance register ({allWeakSignals.length} patterns across {totalStoredRecords.length} records).
+                      No recurring latent precursor patterns correlated with this observation.
                     </p>
                   </div>
                 </div>
               )}
 
-              {allWeakSignals.map((sig) => (
+              {(detectedWeakSignals.length > 0 ? detectedWeakSignals : allWeakSignals).map((sig) => (
                 <div 
                   key={sig.id}
                   className="rounded-2xl bg-white border border-[#EAE6E1] hover:border-slate-300 p-6 shadow-sm space-y-4 transition-all duration-300 text-slate-800"
@@ -1697,7 +1697,7 @@ export default function AIAnalysisView() {
             {/* Modal Footer */}
             <div className="p-4 bg-white border-t border-stone-200 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-600">
-                Total Tracked Precursors: <strong className="text-[#FF5A36]">{allWeakSignals.length}</strong> | Stored Database Records: <strong className="text-slate-900">{totalStoredRecords.length}</strong>
+                Detected Precursors in Observation: <strong className="text-[#FF5A36]">{detectedWeakSignals.length}</strong>
               </span>
               <button
                 type="button"
