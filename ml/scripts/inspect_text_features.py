@@ -104,6 +104,7 @@ def categorize_term(term: str) -> str:
         return "activity wording"
 
     location_keywords = [
+        "unit 1", "unit 2", "unit 3", "unit 4", "unit",
         "laboratory", "maintenance bay", "bay", "well pad", "pad", "station",
         "gathering", "construction", "area", "substation", "compressor",
         "workshop", "access", "road", "plant", "farm", "corridor", "pipeline",

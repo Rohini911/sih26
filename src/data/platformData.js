@@ -214,7 +214,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-001',
     activity: 'Working at Height / Scaffolding Maintenance',
-    location: 'Bay 2 Heavy Fab & Rig Mast 7',
+    location: 'Unit 1',
     barrierFailure: 'Fall Arrest Interconnection Defect (Missing 100% Tie-Off)',
     frequency: 9,
     trend: '+45%',
@@ -231,7 +231,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-002',
     activity: 'Overhead Hoisting & Pipe Transfer',
-    location: 'Bay 2 Heavy Fab & Drill Pipe Yard',
+    location: 'Unit 2',
     barrierFailure: 'Mechanical Rigging Degradation & Exclusion Zone Breach',
     frequency: 7,
     trend: '+28%',
@@ -248,7 +248,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-003',
     activity: 'High Pressure Manifold Maintenance',
-    location: 'Wellhead Pad-4 & Gas Lift Skid',
+    location: 'Unit 3',
     barrierFailure: 'Energy Isolation / Incomplete Depressurization Bleed-off',
     frequency: 6,
     trend: '+12%',
@@ -265,7 +265,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-004',
     activity: 'Confined Vessel Cleaning & Entry',
-    location: 'Crude Storage Tank T-104 & Separators',
+    location: 'Unit 4',
     barrierFailure: 'Atmospheric Gas Testing Delay / Continuous Monitor Omission',
     frequency: 5,
     trend: '-15%',
@@ -282,7 +282,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-005',
     activity: 'Rotary Table & Mud Pump Operations',
-    location: 'Drill Floor Rig 9',
+    location: 'Unit 1',
     barrierFailure: 'Line of Fire / Standby Inside Kinetic Winch Radius',
     frequency: 8,
     trend: '+33%',
@@ -299,7 +299,7 @@ export const PRECURSOR_PATTERNS = [
   {
     id: 'pat-006',
     activity: 'Hot Flare Line Repair & Grinding',
-    location: 'Gas Sweetening Plant & Header',
+    location: 'Unit 2',
     barrierFailure: 'Combustible Gas Guarding & Fire Blanket Integrity',
     frequency: 4,
     trend: '-8%',
