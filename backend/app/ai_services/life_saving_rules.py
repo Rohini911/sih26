@@ -7,7 +7,7 @@ LSR_DEFINITIONS = {
         "code": "LSR-01",
         "name": "Energy Isolation (LOTO)",
         "tagline": "Verify isolation and zero energy before starting work",
-        "keywords": [r'\bloto\b', r'\blockout\b', r'\btagout\b', r'\bisolat\w+', r'\bzero energy\b', r'\bpressur\w+', r'\bde-energiz\w+', r'\belectrical panel\b', r'\bbreaker\b'],
+        "keywords": [r'\bloto\b', r'\block[\s-]*out\b', r'\btag[\s-]*out\b', r'\blockout\b', r'\btagout\b', r'\bisolat\w+', r'\bzero energy\b', r'\bpressur\w+', r'\bde-energiz\w+', r'\belectrical\b', r'\belectrical panel\b', r'\bbreaker\b'],
         "mandatory_controls": [
             "Physical lock and tag applied at isolation point",
             "Zero energy verification (try-step / voltage test / pressure bleed)",
