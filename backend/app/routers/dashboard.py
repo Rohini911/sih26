@@ -8,6 +8,7 @@ from ..models.user import User
 from ..models.safety_report import SafetyReport
 from ..models.ai_analysis import AIAnalysis
 from ..models.feedback import Feedback
+from ..models.weak_signal import WeakSignal
 from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard Intelligence"])
@@ -47,6 +48,11 @@ def get_dashboard_data(
         SafetyReport.organization_id == org_id,
         SafetyReport.analysis_status == "COMPLETED",
         ~SafetyReport.id.in_(feedback_report_ids)
+    ).count()
+
+    # 4b. Dynamic Weak Signals Count
+    weak_signals_count = db.query(WeakSignal).filter(
+        WeakSignal.organization_id == org_id
     ).count()
 
     # 5. Report Distribution by report_type
@@ -205,6 +211,7 @@ def get_dashboard_data(
         "completed_analysis": completed_analysis,
         "potential_sif_findings": potential_sif_findings,
         "awaiting_review": awaiting_review,
+        "weak_signals_count": weak_signals_count,
         "report_distribution": report_distribution,
         "reporting_trend": reporting_trend,
         "sif_assessment_distribution": sif_assessment_distribution,

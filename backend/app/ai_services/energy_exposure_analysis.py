@@ -1,52 +1,91 @@
+"""
+Deterministic Energy Vector and Worker Exposure Analysis
+---------------------------------------------------------
+Classifies the primary physical energy vector involved in industrial operations:
+- Gravity
+- Kinetic
+- Electrical
+- Chemical
+- Thermal
+- Pneumatic / High Pressure
+
+Strictly adheres to:
+If no explicit physical energy vector is stated in the observation (e.g. 'At front door it is very slippery'),
+returns 'Not identified / Insufficient Information' rather than inventing an energy vector.
+"""
+
 import re
 from typing import Dict, Optional
 
 def analyze_energy_and_exposure(text: str) -> Dict[str, Optional[str]]:
     """
-    Identifies specific energy sources and worker exposure contexts when supported.
-    Returns None when the information is not supported by the report.
+    Deterministically evaluates energy vector and worker exposure pathways.
+    Returns 'Not identified / Insufficient Information' if no recognizable physical energy vector is detected.
     """
+    if not text or not isinstance(text, str):
+        return {
+            "energy_source": "Not identified / Insufficient Information",
+            "exposure": "Insufficient Information"
+        }
+
     lower_text = text.lower()
     energy_source = None
     exposure = None
 
-    # 1. Energy Source Detection
-    if re.search(r'\b(overhead|suspended|crane|hoist|dropped|fell from|height|scaffold|ladder|roof|edge)\b', lower_text):
-        energy_source = "Gravity (High elevation potential energy / falling mass)"
-    elif re.search(r'\b(electrical|voltage|440v|11kv|live cable|spark|arc flash|switchgear|breaker)\b', lower_text):
-        energy_source = "Electrical Energy (Live high-voltage circuit / arc flash potential)"
-    elif re.search(r'\b(pressurized|pressure|hydraulic|steam|gas line|pipeline|hydrotest|blowout|manifold)\b', lower_text):
-        energy_source = "Stored Pressure / Pneumatic & Hydraulic Energy"
-    elif re.search(r'\b(rotating|shaft|gear|conveyor|pinch|roller|impeller|grinder)\b', lower_text):
-        energy_source = "Mechanical Energy (High-speed rotating equipment / kinetic nip points)"
-    elif re.search(r'\b(forklift|truck|vehicle|dumper|loader|trailer|moving crane)\b', lower_text):
-        energy_source = "Kinetic Energy (Mobile industrial vehicle / heavy moving mass)"
-    elif re.search(r'\b(fire|hot work|welding flame|flash fire|hot steam|molten)\b', lower_text):
-        energy_source = "Thermal Energy (High temperature / open flame / flammable vapor)"
-    elif re.search(r'\b(acid|toxic gas|h2s|chemical|corrosive|hazardous fluid)\b', lower_text):
-        energy_source = "Chemical / Toxic Energy (Acute toxicity / corrosive contact)"
-    elif re.search(r'\b(slip\w*|slippery|slick|trip|uneven surface|water on floor)\b', lower_text):
-        energy_source = "Gravity / Kinetic"
+    # 1. Electrical Energy
+    if re.search(r'\b(electrical|voltage|11kv|415v|440v|33kv|230v|switchgear|transformer|live cable|circuit breaker|arc flash|electric shock|de-energiz|loto|lockout|live panel|loose cable|exposed wire)\b', lower_text):
+        energy_source = "Electrical"
+    
+    # 2. Pneumatic / High Pressure Energy
+    elif re.search(r'\b(pressurized|pressure|hydraulic|pneumatic|high-pressure|blowout|hydrotest|wellhead|choke manifold|bop|steam line|gas line|pipe burst|ruptured hose|psi|bar)\b', lower_text):
+        energy_source = "Pneumatic / High Pressure"
 
-    # 2. Exposure Context Detection
-    if re.search(r'\b(slip\w*|slippery|slick|trip|walking|entrance|door|corridor|path)\b', lower_text) and "slip" in lower_text or "slippery" in lower_text or "slick" in lower_text:
-        exposure = "Potential slip/fall exposure"
-    elif re.search(r'\b(standing under|beneath|in drop zone|near crane|under load)\b', lower_text):
-        exposure = "Worker directly exposed in line-of-fire beneath suspended load"
-    elif re.search(r'\b(at height|on scaffold|on roof|on ladder|near open edge|at elevation)\b', lower_text):
+    # 3. Chemical / Toxic / Gas Energy
+    elif re.search(r'\b(chemical|acid|toxic|h2s|hydrogen sulfide|caustic|flammable vapor|corrosive|gas leak|gas is leaking|toxic gas|hydrocarbon|oxygen deficiency|nitrogen)\b', lower_text):
+        energy_source = "Chemical / Gas"
+
+    # 4. Thermal Energy
+    elif re.search(r'\b(thermal|fire|flame|hot work|welding|cutting torch|furnace|boiler|hot surface|molten|flash fire|steam burn)\b', lower_text):
+        energy_source = "Thermal"
+
+    # 5. Gravity Energy (Explicit elevation or falling heavy mass)
+    elif re.search(r'\b(suspended load|dropped object|crane lift|hoist|scaffold|work at height|fall from height|ladder|roof edge|derrick|falling pipe|falling tool)\b', lower_text):
+        energy_source = "Gravity"
+
+    # 6. Kinetic Energy (Explicit heavy moving vehicle or machinery)
+    elif re.search(r'\b(forklift|truck|vehicle|reversing|moving equipment|rotating machinery|conveyor belt|crush|pinch point|nip point|flywheel|winch)\b', lower_text):
+        energy_source = "Kinetic"
+
+    # Default for simple environmental/housekeeping hazards (e.g. 'At front door it is very slippery')
+    # Do NOT invent an energy vector if none is present!
+    else:
+        energy_source = "Not identified / Insufficient Information"
+
+    # Worker Exposure pathways
+    if re.search(r'\b(standing under|beneath suspended load|under load|drop zone)\b', lower_text):
+        exposure = "Worker positioned in direct line-of-fire beneath suspended load"
+    elif re.search(r'\b(work at height|on scaffold|on roof|ladder without tie-off|near open edge|at elevation)\b', lower_text):
         exposure = "Worker exposed to unprotected fall edge at elevation"
-    elif re.search(r'\b(live panel|touching|bare hands|no gloves|near energized|contact with live)\b', lower_text):
+    elif re.search(r'\b(touching live|live panel|contact with conductor|bare hands|uninsulated)\b', lower_text):
         exposure = "Worker in direct physical proximity to live electrical conductors"
-    elif re.search(r'\b(near forklift|walking path|blind turn|reversing|crossing vehicle path)\b', lower_text):
-        exposure = "Pedestrian worker situated in immediate trajectory of mobile equipment"
-    elif re.search(r'\b(inside tank|in vessel|inside manhole|enclosed chamber)\b', lower_text):
-        exposure = "Worker occupied within enclosed/confined space environment"
-    elif re.search(r'\b(near rotating|reaching into|near belt|unprotected nip)\b', lower_text):
-        exposure = "Worker limbs in proximity to unguarded mechanical movement"
-    elif re.search(r'\b(bypassed|no ppe|without protection|unprotected)\b', lower_text):
-        exposure = "Worker performing high-risk task without primary protection barrier"
+    elif re.search(r'\b(water leaking near|water is leaking near).*?(panel|electrical|switch)', lower_text):
+        exposure = "Water ingress in immediate proximity to energized electrical equipment"
+    elif re.search(r'\b(inside vessel|confined space|tank entry|inside pit|manhole)\b', lower_text):
+        exposure = "Worker occupied within enclosed/confined space atmospheric hazard zone"
+    elif re.search(r'\b(near forklift|vehicle path|almost hit a pedestrian|pedestrian in roadway|crossing blind spot)\b', lower_text):
+        exposure = "Pedestrian situated in immediate trajectory of mobile industrial equipment"
+    elif re.search(r'\b(near rotating shaft|reaching into nip|unguarded gear|entanglement)\b', lower_text):
+        exposure = "Worker limbs exposed to unguarded rotating machinery pinch point"
+    elif re.search(r'\b(not_exposed|not in line of fire|zero exposure)\b', lower_text):
+        exposure = "Personnel confirmed not exposed to hazardous energy trajectory"
+    elif re.search(r'\b(without helmet|without_helmet|no helmet|not wearing helmet)\b', lower_text):
+        exposure = "Worker exposed to potential overhead head impact without protective helmet"
+    elif re.search(r'\b(slip\w*|slippery|trip|walkway|entrance|door|floor)\b', lower_text):
+        exposure = "Possible pedestrian worker exposure to surface slip/trip"
+    else:
+        exposure = "Possible"
 
     return {
-        "energy_source": energy_source or "Insufficient Information",
-        "exposure": exposure or "Insufficient Information"
+        "energy_source": energy_source,
+        "exposure": exposure
     }

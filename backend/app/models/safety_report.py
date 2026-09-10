@@ -37,3 +37,4 @@ class SafetyReport(Base):
     user = relationship("User", back_populates="safety_reports")
     ai_analysis = relationship("AIAnalysis", back_populates="safety_report", uselist=False, cascade="all, delete-orphan")
     feedbacks = relationship("Feedback", back_populates="safety_report", cascade="all, delete-orphan")
+    weak_signals = relationship("WeakSignal", secondary="report_weak_signals", back_populates="safety_reports")

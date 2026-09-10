@@ -17,6 +17,7 @@ from ..services.report_service import (
     find_duplicate_report
 )
 from ..services.analysis_service import execute_ai_analysis
+from ..services.historical_pattern_service import detect_and_update_weak_signals
 
 router = APIRouter(prefix="/api/reports", tags=["Safety Reports"])
 
@@ -171,6 +172,9 @@ def batch_upload_reports(
     results = []
     new_count = 0
     duplicate_count = 0
+    analyzed_count = 0
+    failed_count = 0
+    weak_signals_count = 0
 
     for item in payload:
         try:
@@ -209,14 +213,37 @@ def batch_upload_reports(
                 })
                 continue
 
-            # Genuinely new report: create and analyze
+            # Genuinely new report: create, analyze, and correlate
             report = create_report(db, item, current_user)
+            analysis = None
             try:
-                execute_ai_analysis(db, report)
+                analysis = execute_ai_analysis(db, report)
+                analyzed_count += 1
             except Exception:
-                pass
+                failed_count += 1
+
             db.refresh(report)
             new_count += 1
+
+            # Historical pattern comparison & Weak signal detection
+            if analysis:
+                try:
+                    ws_res = detect_and_update_weak_signals(
+                        db=db,
+                        org_id=current_user.organization_id,
+                        current_report=report,
+                        raw_nlp_result={
+                            "identified_hazard": analysis.identified_hazard,
+                            "energy_source": analysis.energy_source,
+                            "barrier_information": analysis.barrier_information,
+                            "identified_action": analysis.identified_action
+                        }
+                    )
+                    if ws_res.get("weak_signal_detected"):
+                        weak_signals_count += 1
+                except Exception:
+                    pass
+
             results.append({
                 "id": report.id,
                 "report_reference": report.report_reference,
@@ -229,15 +256,30 @@ def batch_upload_reports(
                 "identified_hazard": report.ai_analysis.identified_hazard if report.ai_analysis else "Pending Assessment",
                 "is_duplicate": False
             })
-        except Exception as e:
+        except Exception:
+            failed_count += 1
             continue
 
     return {
         "status": "success",
+        "records_received": len(payload),
+        "records_created": new_count,
+        "records_analyzed": analyzed_count,
+        "records_failed": failed_count,
+        "weak_signals_detected": weak_signals_count,
         "ingested_count": new_count,
         "new_count": new_count,
         "duplicate_count": duplicate_count,
         "total_processed": len(payload),
         "reports": results
     }
+
+@router.post("/bulk-upload")
+def bulk_upload_reports_alias(
+    payload: List[SafetyReportCreate],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Compatibility alias routing to batch_upload_reports."""
+    return batch_upload_reports(payload, current_user, db)
 

@@ -803,7 +803,14 @@ export default function AIAnalysisView() {
             iogp_rule: backendResult.life_saving_rule || backendResult.iogp_rule || (isSIF ? 'Line of Fire (LSR-03)' : 'Workplace Housekeeping Standards'),
             explainable_reasoning: reasoning,
             recommended_controls: recControls,
-            corrective_actions: capaActions
+            corrective_actions: capaActions,
+            weak_signals: backendResult.weak_signals || [],
+            weak_signal_detected: Boolean(backendResult.weak_signal_detected),
+            weak_signal_id: backendResult.weak_signal_id,
+            weak_signal_title: backendResult.weak_signal_title,
+            weak_signal_reason: backendResult.weak_signal_reason,
+            related_reports: backendResult.related_reports || [],
+            escalation_path: backendResult.escalation_path
           };
 
           setAnalysisResult(finalResult);
@@ -913,15 +920,49 @@ export default function AIAnalysisView() {
   const isUnrelated = isUnrelatedIssue(description);
   const isNonSafety = isUnrelated || analysisResult?.is_unrelated || analysisResult?.risk_score === 0 || analysisResult?.report_name?.includes('Non-Safety') || analysisResult?.report_name?.includes('Enter Correct Issue');
 
-  const allWeakSignals = generateAllWeakSignalsAnalysis(
-    totalStoredRecords,
-    analysisResult,
-    description,
-    location
-  );
+  // Dynamic Weak Signals from Backend DB (enforces >= 2 observations, strictly 0 for isolated/first event)
+  const backendWeakSignals = (analysisResult?.weak_signals || []).map(ws => {
+    const rawReports = (Array.isArray(ws.source_reports) && ws.source_reports.length > 0)
+      ? ws.source_reports
+      : (Array.isArray(ws.related_reports) ? ws.related_reports : []);
 
-  // Weak signals detected in the CURRENT record (strictly empty if non-safety/unrelated input!)
-  const detectedWeakSignals = isNonSafety ? [] : allWeakSignals.filter(s => s.isPresentInCurrent);
+    const identifyingRecords = rawReports.length > 0
+      ? rawReports.map((r, idx) => ({
+          ref: r.report_id || r.report_reference || `REC-${r.id || idx+1}`,
+          name: r.short_description || r.report_name || r.identified_hazard || 'Operational Safety Report',
+          unit: r.unit || r.location || ws.unit || 'Operating Unit',
+          date: r.date_submitted || r.report_date || '2026-09-08',
+          role: idx === 0 ? 'Active Trigger Record' : 'Historical Correlated Record',
+          excerpt: r.excerpt || r.description || r.short_description || ''
+        }))
+      : [
+          {
+            ref: analysisResult?.report_reference || 'Current Record',
+            name: analysisResult?.report_name || 'Active Safety Report',
+            unit: location || 'Operating Unit',
+            date: new Date().toISOString().split('T')[0],
+            role: 'Active Trigger Record',
+            excerpt: description
+          }
+        ];
+
+    return {
+      id: ws.id || ws.signal_id,
+      code: ws.signal_id || 'WS-001',
+      category: ws.category || ws.detected_hazard || 'Process Safety Management',
+      title: ws.title,
+      severity: ws.risk_level || (ws.risk_score >= 80 ? 'Critical Risk' : 'High Risk'),
+      isPresentInCurrent: true,
+      identifyingRecords,
+      presentRecordObservation: description,
+      precursorEscalation: ws.escalation_path || `Potential escalation path: ${ws.detected_hazard || 'uncontrolled release'} leading to increased severity.`,
+      systemicMitigation: ws.recommended_action || (ws.barrier_issue ? `1. Restore and verify critical barrier: ${ws.barrier_issue}.\n2. Conduct targeted inspection of ${ws.unit || 'affected area'}.\n3. Issue safety alert for recurring pattern.` : '1. Conduct targeted area walkdown.\n2. Verify operational controls.\n3. Track barrier degradation.'),
+      why_identified: ws.reason || ws.detection_reason || `Recurring pattern identified based on ${ws.recurrence_count || identifyingRecords.length} related observations.`
+    };
+  });
+
+  const detectedWeakSignals = isNonSafety ? [] : (analysisResult?.weak_signals !== undefined ? backendWeakSignals : []);
+  const allWeakSignals = detectedWeakSignals;
 
   const openWeakSignalsModal = () => {
     const match = detectedWeakSignals[0];

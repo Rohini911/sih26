@@ -8,6 +8,7 @@ from ..ai_services.ai_service import analyze_safety_report
 from ..schemas.ai_analysis import AIAnalysisResponse, AIAnalysisRequest, AIAnalysisExecuteResponse
 from ..schemas.safety_report import SafetyReportCreate
 from .report_service import find_duplicate_report, create_report
+from .historical_pattern_service import detect_and_update_weak_signals
 
 def execute_ai_analysis(db: Session, report: SafetyReport) -> AIAnalysis:
     """
@@ -97,6 +98,17 @@ def execute_direct_analysis(
         additional_context=request.additional_context
     )
 
+    # Dynamic Location Extraction: prioritize explicit request location, then text extracted location
+    extracted_loc = raw_result.get("extracted_entities", {}).get("location")
+    invalid_locs = ["unknown", "insufficient information", "not identified", "none", "n/a", ""]
+    
+    if request.location and request.location.strip() and request.location.strip().lower() not in invalid_locs:
+        location = request.location.strip()
+    elif extracted_loc and extracted_loc.strip() and extracted_loc.strip().lower() not in invalid_locs:
+        location = extracted_loc.strip()
+    else:
+        location = (request.location or "Unit 1").strip()
+
     # 2. Extract Life-Saving Rules
     lsr_info = raw_result.get("life_saving_rule")
     if isinstance(lsr_info, dict) and lsr_info.get("rule_name"):
@@ -104,36 +116,18 @@ def execute_direct_analysis(
     else:
         iogp_rule = None
 
-    # 3. Determine SIF classification & dynamic risk metrics
+    # 3. Determine SIF classification & dynamic risk metrics (strictly from pipeline)
     sif_status = raw_result.get("sif_precursor_assessment", "NO")
     is_sif = sif_status == "YES"
-    
-    if is_sif:
-        determination_status = "CONFIRMED SIF PRECURSOR"
-        barrier_status_str = raw_result.get("barrier_information") or "BARRIER_UNKNOWN"
-        if barrier_status_str in ["BARRIER_FAILED", "BARRIER_MISSING"]:
-            risk_score = 95
-        else:
-            risk_score = 88
-        confidence = 96.8
-    elif sif_status == "INSUFFICIENT_INFORMATION":
-        determination_status = "INSUFFICIENT INFORMATION"
-        risk_score = 40
-        confidence = 65.0
-    else:
-        determination_status = "NON-SIF OBSERVATION"
-        hazard_str = (raw_result.get("identified_hazard") or "").lower()
-        if "slip" in hazard_str or "trip" in hazard_str or "housekeeping" in hazard_str:
-            risk_score = 18
-        else:
-            risk_score = 28
-        confidence = 94.2
+    determination_status = raw_result.get("final_ai_decision", "CONFIRMED SIF PRECURSOR" if is_sif else "NON-SIF OBSERVATION")
+    risk_score = raw_result.get("ai_sif_score", 25 if not is_sif else 85)
+    confidence = raw_result.get("ai_confidence", 85.0)
 
     # 4. Extract hazards & energy vectors
     hazards: List[str] = []
     if raw_result.get("identified_hazard"):
         hazards.append(raw_result["identified_hazard"])
-    if raw_result.get("exposure"):
+    if raw_result.get("exposure") and raw_result.get("exposure") != "Insufficient Information":
         hazards.append(f"Exposure Vector: {raw_result['exposure']}")
     if raw_result.get("safety_signals"):
         for sig in raw_result["safety_signals"]:
@@ -144,35 +138,86 @@ def execute_direct_analysis(
         elif sif_status == "INSUFFICIENT_INFORMATION":
             hazards.append("Indeterminate Hazard / Insufficient Information")
         else:
-            hazards.append("Low Kinetic Surface Irregularity")
+            hazards.append("General Operational Observation")
 
     high_energy_vectors: List[str] = []
-    if raw_result.get("energy_source"):
-        high_energy_vectors.append(raw_result["energy_source"])
-    for h in hazards:
-        if any(k in h.lower() for k in ["flammable", "gas", "pressure", "electrical", "fall", "height", "fire", "energy"]):
-            if h not in high_energy_vectors:
-                high_energy_vectors.append(h)
+    energy_source_raw = raw_result.get("energy_source")
+    if energy_source_raw and energy_source_raw not in ["Not identified / Insufficient Information", "None Identified"]:
+        high_energy_vectors.append(energy_source_raw)
 
     # 5. Barrier status description
     barrier_eval = raw_result.get("barrier_information")
     if barrier_eval == "BARRIER_MISSING":
-        barrier_status_desc = "CRITICAL BARRIER MISSING / OMITTED"
+        barrier_status_desc = "Missing / Not Deployed"
     elif barrier_eval == "BARRIER_FAILED":
-        barrier_status_desc = "PRIMARY BARRIER DEGRADED / FAILED"
+        barrier_status_desc = "Failed / Mechanical Rupture"
+    elif barrier_eval == "BARRIER_BYPASSED":
+        barrier_status_desc = "Bypassed / Overridden"
+    elif barrier_eval == "BARRIER_COMPROMISED":
+        barrier_status_desc = "Compromised / Degraded"
     elif barrier_eval == "BARRIER_PRESENT":
-        barrier_status_desc = "SECONDARY DEFENSE ACTIVATED / BARRIER INTACT"
+        barrier_status_desc = "Intact / Functioning"
     else:
-        if is_sif:
-            barrier_status_desc = "BARRIER DEGRADED / INCOMPLETE"
-        elif sif_status == "INSUFFICIENT_INFORMATION":
-            barrier_status_desc = "BARRIER STATUS UNCONFIRMED / INSUFFICIENT DATA"
-        else:
-            barrier_status_desc = "BARRIER INTACT / ADEQUATE"
+        barrier_status_desc = "Insufficient Information"
 
     # 6. Actionable recommendations & CAPA
-    if isinstance(lsr_info, dict) and lsr_info.get("mandatory_controls"):
-        recommended_controls = list(lsr_info["mandatory_controls"])
+    h_lower = (raw_result.get("identified_hazard") or "").lower()
+    t_lower = description.lower()
+    if "slip" in h_lower or "slip" in t_lower or "slippery" in t_lower:
+        recommended_controls = [
+            "Inspect and rectify the slippery surface, identify the source of moisture/oil.",
+            "Provide warning signage and prevent pedestrian exposure until corrected.",
+            "Clean and dry the affected area immediately with compatible absorbent.",
+            "Verify the area during routine post-shift safety inspection."
+        ]
+        corrective_actions = [
+            "Rectify drainage defect or fluid source causing surface slickness.",
+            "Log routine maintenance inspection in CMMS ledger."
+        ]
+    elif "water" in t_lower and ("electrical" in t_lower or "panel" in t_lower):
+        recommended_controls = [
+            "De-energize electrical panel immediately and establish barrier cordon.",
+            "Identify and isolate the source of water leakage.",
+            "Inspect panel enclosure for water ingress and perform insulation resistance test.",
+            "Verify dry, safe conditions before restoring electrical power."
+        ]
+        corrective_actions = [
+            "Permanent pipe/roof repair to eliminate water path above electrical gear.",
+            "Recertify electrical insulation integrity before re-energizing."
+        ]
+    elif "exit" in t_lower or "egress" in h_lower or "blocked" in t_lower:
+        recommended_controls = [
+            "Immediately clear designated emergency exit and evacuation route.",
+            "Remove all stored obstructions, boxes, and materials from doorway.",
+            "Conduct walkdown of all emergency egress pathways in facility.",
+            "Brief area shift personnel on maintaining 100% unobstructed exit access."
+        ]
+        corrective_actions = [
+            "Mark floor with yellow hatching 'Keep Clear At All Times'.",
+            "Audit facility egress compliance during weekly safety committee walk."
+        ]
+    elif "helmet" in t_lower or "head" in h_lower or ("ppe" in h_lower and "without" in t_lower):
+        recommended_controls = [
+            "Provide required safety helmet immediately before worker continues task.",
+            "Brief frontline team on mandatory 100% PPE compliance in operational areas.",
+            "Verify all personnel on shift are equipped with inspected PPE.",
+            "Document observation in shift safety briefing log."
+        ]
+        corrective_actions = [
+            "Conduct shift safety stand-down on Life-Saving Rule personal accountability.",
+            "Ensure contractor supervisor enforces pre-task PPE checks."
+        ]
+    elif "tools" in t_lower or "housekeeping" in h_lower or "stacked" in t_lower:
+        recommended_controls = [
+            "Clear unattended tools and materials from walkway immediately.",
+            "Restack materials and boxes within designated weight and height limits.",
+            "Conduct routine housekeeping walkdown across working area.",
+            "Ensure tools are stored in designated tool racks or containers."
+        ]
+        corrective_actions = [
+            "Implement 5S housekeeping standard across working bays.",
+            "Verify aisle clearance during end-of-shift handover."
+        ]
     elif is_sif:
         recommended_controls = [
             "Immediately trigger Emergency Shutdown (ESD) or line isolation valve",
@@ -180,35 +225,21 @@ def execute_direct_analysis(
             "Conduct continuous multi-gas / zero-energy verification before re-entry",
             "Depressurize and lock-out / tag-out all upstream energy sources"
         ]
-    elif sif_status == "INSUFFICIENT_INFORMATION":
-        recommended_controls = [
-            "Conduct follow-up review with observer to capture specific equipment tags and operational details",
-            "Inspect reported operational area to determine active energy sources and barrier status",
-            "Supplement report with equipment tags, photos, and exact operating unit location"
-        ]
-    else:
-        recommended_controls = [
-            "Re-tighten utility fitting and clear operational drainage path",
-            "Verify containment barrier integrity and restock absorbent materials",
-            "Log routine maintenance work order in CMMS ledger"
-        ]
-
-    if is_sif:
         corrective_actions = [
             "Issue Stop-Work Notice and stand down operating shift team",
             "Dispatch Field HSE Superintendent for barrier integrity inspection",
             "Log high-priority CAPA item in corporate safety intelligence system"
         ]
-    elif sif_status == "INSUFFICIENT_INFORMATION":
-        corrective_actions = [
-            "Follow up with frontline personnel for complete incident details",
-            "Re-evaluate SIF precursor potential once detailed operational parameters are logged"
-        ]
     else:
+        recommended_controls = [
+            "Conduct immediate walkdown inspection to identify hazard root cause",
+            "Implement appropriate physical controls and warning demarcation",
+            "Verify area condition during regular shift safety inspections",
+            "Log findings in facility safety maintenance tracking register"
+        ]
         corrective_actions = [
-            "Immediate utility connection repair by shift mechanic",
             "Log routine maintenance inspection in CMMS ledger",
-            "Review routine housekeeping standards with shift crew"
+            "Review standard operating procedures with shift crew"
         ]
 
     # Report Name
@@ -251,11 +282,24 @@ def execute_direct_analysis(
 
     db.refresh(report)
 
-    # Weak signals list
-    weak_signals_list: List[Dict[str, Any]] = []
-    if raw_result.get("safety_signals"):
-        for s in raw_result["safety_signals"]:
-            weak_signals_list.append({"name": s, "type": "Operational Signal"})
+    # Dynamic Historical Comparison & Weak Signal Detection
+    try:
+        ws_res = detect_and_update_weak_signals(
+            db=db,
+            org_id=current_user.organization_id,
+            current_report=report,
+            raw_nlp_result=raw_result
+        )
+    except Exception as ws_err:
+        ws_res = {
+            "weak_signal_detected": False,
+            "weak_signal_id": None,
+            "weak_signal_title": None,
+            "weak_signal_reason": f"Historical pattern analysis unavailable: {str(ws_err)}",
+            "escalation_path": None,
+            "related_reports": [],
+            "weak_signals": []
+        }
 
     explanation_text = raw_result.get("explanation") or ""
     if is_sif:
@@ -301,7 +345,24 @@ def execute_direct_analysis(
         },
         recommended_controls=recommended_controls,
         corrective_actions=corrective_actions,
-        weak_signals=weak_signals_list,
+        weak_signals=ws_res.get("weak_signals", []),
+        weak_signal_detected=ws_res.get("weak_signal_detected", False),
+        weak_signal_id=ws_res.get("weak_signal_id"),
+        weak_signal_title=ws_res.get("weak_signal_title"),
+        weak_signal_reason=ws_res.get("weak_signal_reason"),
+        related_reports=ws_res.get("related_reports", []),
+        escalation_path=ws_res.get("escalation_path"),
+        ai_classification=raw_result.get("ai_classification", "Non-SIF-potential"),
+        ai_sif_score=raw_result.get("ai_sif_score", risk_score),
+        ai_confidence=raw_result.get("ai_confidence", confidence),
+        rule_based_assessment=raw_result.get("rule_based_assessment", "NO"),
+        ml_probability=raw_result.get("ml_probability", 0.0),
+        final_ai_decision=raw_result.get("final_ai_decision", determination_status),
+        contributing_features=raw_result.get("contributing_features", []),
+        human_classification=None,
+        human_sif_score=None,
+        reviewer_feedback=None,
+        review_status="Pending Review",
         is_duplicate=is_duplicate,
         is_unrelated=False,
         message=message,

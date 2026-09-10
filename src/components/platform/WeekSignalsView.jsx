@@ -102,87 +102,24 @@ export default function WeekSignalsView({ onNavigate }) {
     if (!selectedSignal) return [];
     
     // Check if signal has explicit source_reports or identifyingRecords
-    const fromDetail = (signalDetail?.source_reports || selectedSignal?.source_reports || []).map((rep, idx) => ({
-      ref: rep.report_id || `REP-ID001-000${idx + 1}`,
-      name: rep.pattern_identified || rep.short_description || selectedSignal.title,
-      unit: rep.unit || rep.facility_unit || rep.location || (idx === 0 ? 'Unit 1' : 'Gas Compressor Bay A'),
-      excerpt: rep.short_description || 'Field precursor telemetry logged.'
+    const rawList = selectedSignal?.source_reports || signalDetail?.source_reports || selectedSignal?.identifyingRecords || [];
+    const fromDetail = rawList.map((rep, idx) => ({
+      ref: rep.report_id || rep.report_reference || rep.ref || `REP-${idx + 1}`,
+      name: rep.pattern_identified || rep.report_name || rep.short_description || rep.name || selectedSignal.title,
+      unit: rep.unit || rep.facility_unit || rep.location || 'Operating Unit',
+      excerpt: rep.excerpt || rep.short_description || rep.description || 'Precursor observation recorded in system.'
     }));
 
-    if (fromDetail.length >= 2) return fromDetail;
-
-    const query = `${selectedSignal.title || ''} ${selectedSignal.category || ''} ${selectedSignal.potential_sif_precursor || ''}`.toLowerCase();
-    const isGas = /gas|leak|flange|pipeline|pressure|hiss/.test(query);
-
-    const list = [...fromDetail];
-    
-    // Always include leading anchor record
-    if (list.length === 0) {
-      list.push({
-        ref: 'Current Analyzed Record',
-        name: selectedSignal.title || 'Main Pipeline High-Pressure Gas Leakage',
-        unit: 'Unit 1',
-        excerpt: selectedSignal.potential_sif_precursor || 'A high-pressure natural gas pipeline flange developed a severe gas leakage in the compressor area. Gas detectors alarmed at 65% LEL with loud gas hiss...'
-      });
+    if (fromDetail.length > 0) {
+      return fromDetail;
     }
 
-    if (isGas) {
-      const baselines = [
-        {
-          ref: 'REP-ID001-0001',
-          name: 'Compressor Station Natural Gas Pipeline Leakage',
-          unit: 'Gas Compressor Bay A',
-          excerpt: 'Pipeline flange gasket blowout released 70% LEL gas cloud across compressor bay near active electrical lights.'
-        },
-        {
-          ref: 'REP-ID001-0003',
-          name: 'LPG Storage Tank Flange Flammable Gas Leakage',
-          unit: 'LPG Storage Farm',
-          excerpt: 'Heavy propane leak pooling in low-lying ground trench near roadway without safety barricades.'
-        },
-        {
-          ref: 'REP-ID001-0005',
-          name: 'Staff Canteen Cooking Gas Stove Valve Micro-Leak',
-          unit: 'Staff Facility Kitchen',
-          excerpt: 'Slow micro-seep on gas valve connection causing localized fuel gas odor accumulation.'
-        },
-        {
-          ref: 'REP-ID001-0008',
-          name: 'Main Pipeline High-Pressure Gas Leakage',
-          unit: 'Unit 1 Operating Bay',
-          excerpt: 'A high-pressure natural gas pipeline flange developed a severe gas leakage in the compressor area. Gas detectors alarmed at 65% LEL with loud gas hiss...'
-        }
-      ];
-      baselines.forEach(b => {
-        if (!list.some(item => item.ref === b.ref)) list.push(b);
-      });
-    } else {
-      const baselines = [
-        {
-          ref: 'REP-ID001-0002',
-          name: 'Main Substation Electrical Cabinet Fire Outbreak',
-          unit: 'Electrical Substation 02',
-          excerpt: 'Electrical fire erupted inside 415V power distribution panel due to loose cable lug, producing 1.5m flames.'
-        },
-        {
-          ref: 'REP-ID001-0004',
-          name: 'Structural Welding Sparks Igniting Solvent Floor Fire',
-          unit: 'Fabrication Workshop Bay 4',
-          excerpt: 'Cutting torch sparks ignited cleaning solvent rags on floor, creating instant 2m open flame.'
-        },
-        {
-          ref: 'REP-ID001-0006',
-          name: 'Office Perimeter Smoldering & Insulation Breakdown',
-          unit: 'Office Perimeter Walkway',
-          excerpt: 'Smoldering paper and localized thermal hotspot near exterior power conduit routing.'
-        }
-      ];
-      baselines.forEach(b => {
-        if (!list.some(item => item.ref === b.ref)) list.push(b);
-      });
-    }
-
-    return list;
+    return [{
+      ref: selectedSignal.signal_id || 'WS-01',
+      name: selectedSignal.title,
+      unit: selectedSignal.location || 'Operating Unit',
+      excerpt: selectedSignal.potential_sif_precursor || selectedSignal.description || 'Under active multi-report monitoring.'
+    }];
   }, [selectedSignal, signalDetail]);
 
   // Load Weak Signals & Emerging Clusters from backend or local safetyStore
@@ -196,8 +133,13 @@ export default function WeekSignalsView({ onNavigate }) {
         console.warn('Backend weak-signals API unreachable, falling back to local store:', backendErr);
       }
 
-      if (backendData && Array.isArray(backendData.weak_signals) && backendData.weak_signals.length > 0) {
-        setSummary(backendData.summary);
+      if (backendData && Array.isArray(backendData.weak_signals)) {
+        setSummary(backendData.summary || {
+          total_active_signals: backendData.weak_signals.length,
+          high_risk_precursors: backendData.weak_signals.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
+          escalating_patterns: backendData.weak_signals.filter(s => s.risk_score && s.risk_score >= 80).length,
+          average_confidence: backendData.weak_signals.length > 0 ? 95.8 : 0
+        });
         setSignals(backendData.weak_signals);
         if (Array.isArray(backendData.emerging_clusters) && backendData.emerging_clusters.length > 0) {
           setClusters(backendData.emerging_clusters);
@@ -237,7 +179,7 @@ export default function WeekSignalsView({ onNavigate }) {
           total_active_signals: stored.length,
           high_risk_precursors: stored.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
           escalating_patterns: stored.filter(s => s.risk_score && s.risk_score >= 80).length,
-          average_confidence: 95.8
+          average_confidence: stored.length > 0 ? 95.8 : 0
         });
       }
     } catch (err) {
@@ -248,7 +190,7 @@ export default function WeekSignalsView({ onNavigate }) {
         total_active_signals: stored.length,
         high_risk_precursors: stored.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
         escalating_patterns: stored.filter(s => s.risk_score && s.risk_score >= 80).length,
-        average_confidence: 95.8
+        average_confidence: stored.length > 0 ? 95.8 : 0
       });
     } finally {
       setLoading(false);
