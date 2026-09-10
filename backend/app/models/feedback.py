@@ -19,6 +19,9 @@ class Feedback(Base):
     
     feedback_status = Column(String(50), nullable=False) # CORRECT, PARTIALLY_CORRECT, INCORRECT
     feedback_text = Column(Text, nullable=True)
+    human_sif_decision = Column(String(50), nullable=True) # SIF-potential, Non-SIF-potential, CONFIRMED, REJECTED
+    human_sif_score = Column(Integer, nullable=True) # 0 to 100
+    review_status = Column(String(50), default="COMPLETED", nullable=False) # COMPLETED, PENDING
     created_at = Column(DateTime, default=datetime.utcnow)
 
     safety_report = relationship("SafetyReport", back_populates="feedbacks")

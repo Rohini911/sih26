@@ -154,16 +154,21 @@ def get_sif_patterns_and_dashboard_data(db: Session, org_id: str) -> SIFPatterns
     # Most frequent barrier failure
     if barrier_failure_counts:
         most_frequent_barrier = max(barrier_failure_counts.items(), key=lambda x: x[1])[0]
+    elif total_reports > 0:
+        most_frequent_barrier = "No barrier failures recorded"
     else:
-        most_frequent_barrier = "Physical Guarding & Interlocks (Deficiency Detected)"
+        most_frequent_barrier = "None recorded"
 
     # Highest risk area
     if location_sif_counts:
         highest_risk_area = max(location_sif_counts.items(), key=lambda x: x[1])[0]
     elif reports and reports[0].location:
         highest_risk_area = reports[0].location
+    elif total_reports > 0:
+        highest_risk_area = "General Operating Area"
     else:
-        highest_risk_area = "Operational Substructure Area"
+        highest_risk_area = "None recorded"
+
 
     pattern_results = analyze_operational_patterns(report_dicts)
     narrative_results = generate_safety_narrative(

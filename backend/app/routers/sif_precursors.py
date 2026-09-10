@@ -47,48 +47,8 @@ def list_sif_precursors(
             "related_reports_count": 1
         })
 
-    # If no DB records yet, provide baseline precursors
-    if not precursors:
-        precursors = [
-            {
-                "id": 1,
-                "precursor_id": "PREC-01",
-                "title": "Repeated Unbarricaded Rigging & Suspended Load Exposures",
-                "category": "Lifting Operations & Rigging",
-                "unit": "Unit 2",
-                "isSIF": True,
-                "risk_score": 94,
-                "status": "Under Review",
-                "short_description": "Crane hoisting suspended 2-ton casing pipe over active drill crew walkway without physical exclusion barricades.",
-                "why_identified": "AI/NLP pattern detected multiple reports across shifts where crane hoisting was conducted without drop-zone barricades.",
-                "detection_date": "2026-08-28",
-                "engineering_mandate": "Immediate physical exclusion barriers and dual-rigger radio signaling required before any crane load lift.",
-                "reviewer_notes": "Safety audit verified on site inspection. Stop-work barrier enforced.",
-                "reviewed_at": None,
-                "related_weak_signals_count": 2,
-                "related_reports_count": 3
-            },
-            {
-                "id": 2,
-                "precursor_id": "PREC-02",
-                "title": "Compromised Electrical Zero-Energy Isolation & LOTO Bypass",
-                "category": "Hazardous Energy & LOTO",
-                "unit": "Unit 1",
-                "isSIF": True,
-                "risk_score": 91,
-                "status": "Complete",
-                "short_description": "Technician observed entering 11kV electrical switchgear room without LOTO energy isolation or live-dead-live testing.",
-                "why_identified": "AI/NLP identified recurring reports of conveyor jam clearing without padlocking main disconnect switches.",
-                "detection_date": "2026-08-30",
-                "engineering_mandate": "Enforce mandatory two-person zero-voltage probe verification and custody-transfer padlock lockbox before panel entry.",
-                "reviewer_notes": "Confirmed and resolved by Chief HSE Auditor. Physical lockout stations audited.",
-                "reviewed_at": "2026-09-07T16:36:27",
-                "related_weak_signals_count": 1,
-                "related_reports_count": 3
-            }
-        ]
-
     return precursors
+
 
 @router.get("/{precursor_id}")
 def get_sif_precursor_details(

@@ -56,7 +56,8 @@ CANONICAL_SAFETY_CONCEPTS = [
     "corrosion", "unlocked", "isolation", "blocked", "egress", "extinguisher",
     "scaffold", "ladder", "forklift", "pedestrian", "welding", "flammable",
     "exhaust", "ventilation", "lighting", "housekeeping", "clutter", "damage",
-    "broken", "cracked", "missing", "unsecured", "overloaded", "malfunction"
+    "broken", "cracked", "missing", "unsecured", "overloaded", "malfunction",
+    "injured", "injury", "exposure", "thermal", "vibrating", "vibration"
 ]
 
 # Genuinely unrelated conversational phrases
@@ -74,76 +75,89 @@ CONVERSATIONAL_PATTERNS = [
     r'^(?:thank\s+you|thanks|ok|okay|bye|goodbye)[\.!\?]?$',
     r'\bwho\s+won\s+the\s+match\b',
     r'\bsing\s+a\s+song\b',
+    r'^(?:asdf|qwerty|zxcv|test|1234|abc)[\.!\?]?$'
 ]
 CONVERSATIONAL_REGEX = re.compile("|".join(CONVERSATIONAL_PATTERNS), re.IGNORECASE)
 
+# Vague / Ambiguous Insufficient Information patterns
+INSUFFICIENT_INFO_PATTERNS = [
+    r'^(?:something|anything|an?\s+issue|a\s+problem|an?\s+incident|an?\s+accident|an?\s+event|issue|problem|incident|accident)\s+(?:happened|occurred|took\s+place|reported|there|here)[\.!\?]?$',
+    r'^(?:something\s+happened|an\s+issue\s+occurred|there\s+was\s+a\s+problem|incident\s+occurred|something\s+went\s+wrong|issue\s+happened|problem\s+occurred|accident\s+happened)[\.!\?]?$',
+    r'^(?:check\s+this|look\s+at\s+this|investigate\s+this|something\s+is\s+wrong)[\.!\?]?$'
+]
+INSUFFICIENT_INFO_REGEX = re.compile("|".join(INSUFFICIENT_INFO_PATTERNS), re.IGNORECASE)
+
 # Comprehensive Safety Observation Category Signals
 SAFETY_OBSERVATION_PATTERNS = [
-    # 1. Slip / Trip / Fall
-    (r'\b(slip\w*|slippery|slick|trip\w*|fall\w*|fell|stumble|water on floor|wet floor|water puddle|greasy floor|oil on floor|mud on deck|uneven surface|uneven floor|ice on walkway|skid)\b', "Slip / Trip / Fall"),
-    
-    # 2. PPE & Protective Equipment
-    (r'\b(helmet|hard hat|safety shoes|steel toe|goggles|safety glasses|face shield|earplugs|harness|lanyard|high-vis|vest|respirator|mask|without ppe|no ppe|not wearing|no helmet|no harness)\b', "PPE / Protective Equipment"),
-    
-    # 3. Housekeeping & Storage
-    (r'\b(housekeeping|tools on floor|left on the floor|clutter|boxes stacked|stacked improperly|unstable stack|messy|trash on walkway|debris on floor|unsecured pallet|blocked walkway|untidy)\b', "Housekeeping / Storage"),
-    
-    # 4. Emergency Access & Egress
-    (r'\b(emergency exit|fire exit|exit blocked|blocked exit|fire door|fire extinguisher|eye wash|egress|obstruction in aisle|evacuation route|access blocked|path blocked)\b', "Emergency Access / Egress"),
-    
-    # 5. Lighting & Visibility
+    # 1. Slip / Trip / Fall & Surface Contamination
+    (r'\b(slip\w*|slippery|slick|trip\w*|fall\w*|fell|stumble\w*|water on floor|wet floor|water puddle|greasy floor|oil on floor|mud on deck|uneven surface|uneven floor|ice on walkway|skid|water on floor)\b', "Slip / Trip / Fall"),
+
+    # 2. Worker Injury, Harm & Medical
+    (r'\b(injur\w*|injured|injury|hurt|wound\w*|burn\w*|casualty|first aid|hospital|bleeding|pain|fracture|struck by|hit by|caught in|crushed|worker fell|worker slipped|worker injured|man is injured|worker was injured|person injured)\b', "Worker Injury / Incident"),
+
+    # 3. Thermal & Heat Exposure
+    (r'\b(heat\b|thermal|high temperature|excessive heat|heat stress|heatstroke|hot surface|burn hazard|fire|flame|sparks|burning|combustible|flammable|welding without screen|smoking in area|explouser|exposure|exposed to heat|hot work)\b', "Thermal / Heat Exposure"),
+
+    # 4. PPE & Protective Equipment
+    (r'\b(helmet|hard hat|safety shoes|steel toe|goggles|safety glasses|face shield|earplugs|harness|lanyard|high-vis|vest|respirator|mask|without ppe|no ppe|not wearing|no helmet|no harness|no gloves|without gloves|gloves|eye protection)\b', "PPE / Protective Equipment"),
+
+    # 5. Housekeeping & Dropped Objects
+    (r'\b(housekeeping|tools on floor|left on the floor|clutter|boxes stacked|stacked improperly|unstable stack|messy|trash on walkway|debris on floor|unsecured pallet|blocked walkway|untidy|box almost fell|box fell|dropped object|dropped tool|object fell)\b', "Housekeeping / Storage"),
+
+    # 6. Emergency Access & Egress
+    (r'\b(emergency exit|fire exit|exit blocked|blocked exit|fire door|fire extinguisher|eye wash|egress|obstruction in aisle|evacuation route|access blocked|path blocked|door blocked)\b', "Emergency Access / Egress"),
+
+    # 7. Lighting & Visibility
     (r'\b(lighting|poor lighting|dim light|dark walkway|dark corridor|bulb burnt|no light|insufficient lighting|glare|blind spot|visibility poor)\b', "Lighting / Visibility"),
-    
-    # 6. Electrical
-    (r'\b(electrical|electric|wire|cable|cord|loose cable|frayed|bare wire|exposed conductor|conduit|outlet|plug|socket|switchboard|switchgear|panel|breaker|arc flash|spark|energized|shock)\b', "Electrical"),
-    
-    # 7. Leakage & Fluid Release
-    (r'\b(leak\w*|water leaking|oil leaking|pipe leaking|hose leaking|dripping|seepage|puddle forming|steam leaking|flange leak|valve dripping|weeping)\b', "Leakage / Fluid Release"),
-    
-    # 8. Gas & Atmosphere
-    (r'\b(gas leak|gas odor|smell of gas|h2s|toxic gas|fumes|vapor|smoke|hissing sound|air quality|ventilation|oxygen)\b', "Gas / Atmospheric Hazard"),
-    
-    # 9. Fire & Thermal
-    (r'\b(fire|flame|sparks|hot surface|burning|combustible|flammable|welding without screen|smoking in area|heat stress|burn hazard)\b', "Fire & Thermal"),
-    
-    # 10. Mechanical & Machinery Safeguards
-    (r'\b(guard\w*|machine guard|guard missing|guard loose|loose guard|exposed blade|nip point|pinch point|conveyor|rotating|moving parts|entanglement|jammed machine)\b', "Mechanical & Safeguards"),
-    
-    # 11. Vehicles & Mobile Equipment
-    (r'\b(forklift|truck|vehicle|dumper|loader|pedestrian|almost hit|narrowly missed|near collision|speeding vehicle|reversing without alarm|reversing without spotter)\b', "Vehicle & Pedestrian Safety"),
-    
-    # 12. Working at Height
+
+    # 8. Electrical & Wiring
+    (r'\b(electrical|electric|wire|cable|cord|loose cable|frayed|bare wire|exposed conductor|conduit|outlet|plug|socket|switchboard|switchgear|panel|breaker|arc flash|spark|energized|shock|damaged cable|cable is damaged|wire is exposed|electrical wire)\b', "Electrical"),
+
+    # 9. Leakage, Fluid Release & Spills
+    (r'\b(leak\w*|water leaking|oil leaking|pipe leaking|hose leaking|dripping|seepage|puddle forming|steam leaking|flange leak|valve dripping|weeping|water is leaking|oil spilled|spill\w*|spilled|fluid release)\b', "Leakage / Fluid Release"),
+
+    # 10. Gas & Atmosphere
+    (r'\b(gas leak|gas odor|smell of gas|gas smell|gas is leaking|h2s|toxic gas|fumes|vapor|smoke|hissing sound|air quality|ventilation|oxygen|flammable atmosphere|atmospheric monitoring|atmospheric test\w*|gas test\w*|gas monitor\w*|air monitor\w*|multi-gas|lel detector)\b', "Gas / Atmospheric Hazard"),
+
+    # 11. Mechanical, Safeguards & Vibration
+    (r'\b(guard\w*|machine guard|guard missing|guard loose|loose guard|exposed blade|nip point|pinch point|conveyor|rotating|moving parts|entanglement|jammed machine|vibrat\w*|machine is vibrating|excessive vibration)\b', "Mechanical & Safeguards"),
+
+    # 12. Vehicles & Mobile Equipment
+    (r'\b(forklift|truck|vehicle|dumper|loader|pedestrian|almost hit|narrowly missed|near collision|speeding vehicle|reversing without alarm|reversing without spotter|forklift nearly hit|forklift almost hit)\b', "Vehicle & Pedestrian Safety"),
+
+    # 13. Working at Height
     (r'\b(height|scaffold\w*|ladder|roof|edge|mezzanine|platform|handrail missing|open grating|hole in floor|toe-board missing|fall hazard)\b', "Working at Height"),
-    
-    # 13. Confined Space & Pits
-    (r'\b(confined space|vessel entry|tank entry|pit entry|manhole|trench|excavation|ditch)\b', "Confined Space & Excavation"),
-    
-    # 14. Lifting & Rigging
+
+    # 14. Confined Space & Pits
+    (r'\b(confined space|enclosed space|vessel entry|tank entry|pit entry|manhole|trench|excavation|ditch|entering (?:the )?vessel|entered (?:the )?vessel|inside (?:the )?vessel|inside (?:the )?tank|vessel)\b', "Confined Space & Excavation"),
+
+    # 15. Lifting & Rigging
     (r'\b(crane|hoist|winch|sling|rigging|shackle|suspended load|overhead load|dropped object|falling tool|lifting gear)\b', "Lifting & Rigging"),
-    
-    # 15. Energy Isolation (LOTO) & Permits
+
+    # 16. Energy Isolation (LOTO) & Permits
     (r'\b(loto|lockout|tagout|isolation|isolated|permit|ptw|work permit|authorization|de-energize)\b', "Energy Isolation & Work Authorization"),
-    
-    # 16. Barrier & Physical Protection Deficiencies
-    (r'\b(barricade|handrail|guardrail|barrier missing|barrier damaged|fence broken|gate open|warning sign missing|warning tape)\b', "Barrier & Physical Protection"),
-    
-    # 17. Unsafe Acts & Human Behaviors
-    (r'\b(unsafe act|bypassed|ignored rule|horseplay|running on stairs|standing under|overreaching|climbing without|unauthorized)\b', "Unsafe Act / Behavior"),
-    
+
+    # 17. Barrier & Physical Protection Deficiencies
+    (r'\b(barricade|handrail|guardrail|barrier missing|barrier damaged|fence broken|gate open|warning sign missing|warning tape|without monitoring|without testing|not completed|not conducted|not performed|bypassed|omitted)\b', "Barrier & Physical Protection"),
+
     # 18. General Hazard & Unsafe Condition terms
-    (r'\b(hazard|unsafe|danger\w*|risk|near miss|incident|accident|damage\w*|defect\w*|faulty|abnormal|unstable|loose\b|corroded|vibrating)\b', "Operational Hazard")
+    (r'\b(hazard|unsafe|danger\w*|risk|near miss|incident|accident|damage\w*|defect\w*|faulty|abnormal|unstable|loose\b|corroded|exposure|explouser)\b', "Operational Hazard")
 ]
 
 
 def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
     """
-    Evaluates whether raw input is a legitimate workplace safety observation
-    or an unrelated conversational query.
+    Evaluates raw input into one of three distinct categories:
+    1. VALID SAFETY OBSERVATION - Operational observation, condition, act, hazard, or near-miss.
+    2. INSUFFICIENT INFORMATION - Vague, ambiguous text lacking operational specifics.
+    3. UNRELATED INPUT - Conversational greetings, off-topic chat, or random text.
 
     Returns:
         Dict containing:
             - is_valid_safety_observation: bool
             - is_unrelated: bool
+            - is_insufficient_information: bool
+            - validation_category: "VALID SAFETY OBSERVATION" | "INSUFFICIENT INFORMATION" | "UNRELATED INPUT"
             - primary_category: Optional[str]
             - detected_categories: List[str]
             - confidence_score: float (0.0 to 1.0)
@@ -153,6 +167,8 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
         return {
             "is_valid_safety_observation": False,
             "is_unrelated": True,
+            "is_insufficient_information": False,
+            "validation_category": "UNRELATED INPUT",
             "primary_category": None,
             "detected_categories": [],
             "confidence_score": 0.0,
@@ -161,18 +177,40 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
 
     cleaned = text.strip()
 
-    # Very short inputs (e.g. "hi", "ok", "a")
-    if len(cleaned) < 4:
+    # Pre-normalize high-frequency safety typos (e.g. explouser -> exposure)
+    try:
+        from .preprocessing import normalize_safety_spelling
+        cleaned = normalize_safety_spelling(cleaned)
+    except Exception:
+        pass
+
+    lower_cleaned = cleaned.lower()
+
+    # Check for Vague / Insufficient Information inputs (e.g. "something happened", "an issue occurred")
+    if INSUFFICIENT_INFO_REGEX.search(lower_cleaned):
+        return {
+            "is_valid_safety_observation": False,
+            "is_unrelated": False,
+            "is_insufficient_information": True,
+            "validation_category": "INSUFFICIENT INFORMATION",
+            "primary_category": "Insufficient Information",
+            "detected_categories": [],
+            "confidence_score": 0.20,
+            "explanation": "The safety report lacks specific operational details (hazard, equipment, action, or condition). Please provide a more descriptive observation."
+        }
+
+    # Very short inputs (e.g. "hi", "ok", "a", "asdf")
+    if len(lower_cleaned) < 4:
         return {
             "is_valid_safety_observation": False,
             "is_unrelated": True,
+            "is_insufficient_information": False,
+            "validation_category": "UNRELATED INPUT",
             "primary_category": None,
             "detected_categories": [],
             "confidence_score": 0.0,
             "explanation": "The description does not appear to contain a workplace safety observation. Please describe a safety hazard, unsafe condition, unsafe act, or near-miss observation."
         }
-
-    lower_cleaned = cleaned.lower()
 
     # Step 1: Detect and match safety observation categories
     matched_categories: List[str] = []
@@ -185,9 +223,8 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
     if not matched_categories and RAPIDFUZZ_AVAILABLE:
         tokens = re.findall(r'\b[a-z]{4,}\b', lower_cleaned)
         for token in tokens:
-            best_match = process.extractOne(token, CANONICAL_SAFETY_CONCEPTS, scorer=fuzz.ratio, score_cutoff=85)
+            best_match = process.extractOne(token, CANONICAL_SAFETY_CONCEPTS, scorer=fuzz.ratio, score_cutoff=82)
             if best_match:
-                # Map fuzzy hit to a general category
                 concept = best_match[0]
                 if concept in ["slippery", "slipped", "tripped"]:
                     matched_categories.append("Slip / Trip / Fall")
@@ -201,12 +238,15 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
                     matched_categories.append("Housekeeping / Storage")
                 elif concept in ["blocked", "egress", "extinguisher"]:
                     matched_categories.append("Emergency Access / Egress")
+                elif concept in ["injured", "injury"]:
+                    matched_categories.append("Worker Injury / Incident")
+                elif concept in ["exposure", "thermal"]:
+                    matched_categories.append("Thermal / Heat Exposure")
+                elif concept in ["vibrating", "vibration"]:
+                    matched_categories.append("Mechanical & Safeguards")
                 else:
                     matched_categories.append("Operational Hazard")
                 break
-
-    # Step 3: Check for pure conversational/off-topic patterns
-    is_pure_conversational = bool(CONVERSATIONAL_REGEX.search(lower_cleaned))
 
     # Decision Logic:
     # If safety patterns matched, it is a VALID SAFETY OBSERVATION even if conversational words coexist
@@ -216,31 +256,38 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
         return {
             "is_valid_safety_observation": True,
             "is_unrelated": False,
+            "is_insufficient_information": False,
+            "validation_category": "VALID SAFETY OBSERVATION",
             "primary_category": primary,
             "detected_categories": matched_categories,
-            "confidence_score": min(0.98, 0.70 + (0.10 * len(matched_categories))),
+            "confidence_score": min(0.98, 0.75 + (0.08 * len(matched_categories))),
             "explanation": f"Validated workplace safety observation relating to {primary}."
         }
 
-    # If conversational pattern matches and NO safety category is present:
+    # Step 3: Check for pure conversational/off-topic patterns
+    is_pure_conversational = bool(CONVERSATIONAL_REGEX.search(lower_cleaned))
     if is_pure_conversational:
         return {
             "is_valid_safety_observation": False,
             "is_unrelated": True,
+            "is_insufficient_information": False,
+            "validation_category": "UNRELATED INPUT",
             "primary_category": None,
             "detected_categories": [],
             "confidence_score": 0.0,
             "explanation": "The description does not appear to contain a workplace safety observation. Please describe a safety hazard, unsafe condition, unsafe act, or near-miss observation."
         }
 
-    # Fallback check: Does text contain action verbs or physical condition adjectives?
-    # e.g. "Boxes were tilted", "Pipe was hot", "Smell was strange"
-    condition_verbs = re.search(r'\b(was|is|were|are|found|observed|noticed|left|fell|hanging|leaking|loose|blocked|broken|damaged|hot|cold|smells?|wet|dark|sharp)\b', lower_cleaned)
-    noun_indicators = re.search(r'\b(floor|door|walkway|wall|pipe|machine|stair|tool|box|panel|wire|room|yard|deck|ground|air|water|tank)\b', lower_cleaned)
+    # Step 4: Fallback check: Does text contain action verbs or physical condition adjectives?
+    # e.g. "Boxes were tilted", "Pipe was hot", "Floor is wet", "Water on floor", "Worker fell"
+    condition_verbs = re.search(r'\b(was|is|were|are|found|observed|noticed|left|fell|hanging|leaking|loose|blocked|broken|damaged|hot|cold|smells?|wet|dark|sharp|slippery|injured|exposed|vibrating|spilled|dropped)\b', lower_cleaned)
+    noun_indicators = re.search(r'\b(floor|door|walkway|wall|pipe|machine|stair|tool|box|panel|wire|room|yard|deck|ground|air|water|tank|worker|man|person|crew|operator|cable|gas|oil|heat|temperature|lighting|light|exit|entrance)\b', lower_cleaned)
     if condition_verbs and noun_indicators:
         return {
             "is_valid_safety_observation": True,
             "is_unrelated": False,
+            "is_insufficient_information": False,
+            "validation_category": "VALID SAFETY OBSERVATION",
             "primary_category": "Unsafe Condition",
             "detected_categories": ["Unsafe Condition"],
             "confidence_score": 0.75,
@@ -251,6 +298,8 @@ def classify_safety_observation_validity(text: str) -> Dict[str, Any]:
     return {
         "is_valid_safety_observation": False,
         "is_unrelated": True,
+        "is_insufficient_information": False,
+        "validation_category": "UNRELATED INPUT",
         "primary_category": None,
         "detected_categories": [],
         "confidence_score": 0.0,

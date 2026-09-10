@@ -37,7 +37,10 @@ def submit_report_feedback(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
         feedback_status=norm_status,
-        feedback_text=payload.feedback_text.strip() if payload.feedback_text else None
+        feedback_text=payload.feedback_text.strip() if payload.feedback_text else None,
+        human_sif_decision=payload.human_sif_decision.strip() if payload.human_sif_decision else None,
+        human_sif_score=payload.human_sif_score if payload.human_sif_score is not None else None,
+        review_status=payload.review_status.strip() if payload.review_status else "COMPLETED"
     )
     db.add(fb)
     db.commit()

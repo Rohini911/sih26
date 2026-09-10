@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CheckSquare, 
   Clock, 
@@ -12,78 +12,45 @@ import {
   Layers,
   ChevronRight
 } from 'lucide-react';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
 
 export default function CorrectiveActionsView() {
+  const [storeState, setStoreState] = useState(getStoreState());
   const [filterPriority, setFilterPriority] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  const [actions, setActions] = useState([
-    {
-      id: 'CAPA-2026-081',
-      title: 'Erect Interlocked Crane Drop-Zone Physical Barricade',
-      description: 'Design and install heavy-duty magnetic chain barrier with warning sirens under Rig 04 Derrick Floor crane radius.',
-      precursorRef: 'REP-ID001-0001',
-      assignedTo: 'Mechanical Lifting Integrity Team',
-      assignedPerson: 'Sarah Jenkins (Lead Rigging Engineer)',
-      dueDate: '2026-09-08',
-      priority: 'P1 - Critical',
-      status: 'Open',
-      progress: 65,
-      site: 'Plant 03'
-    },
-    {
-      id: 'CAPA-2026-082',
-      title: 'Mandatory Multi-Lock LOTO Station Installation',
-      description: 'Install lockout stations with dual-key interlocks outside 11kV Substation A breaker panel doors.',
-      precursorRef: 'REP-ID001-0002',
-      assignedTo: 'Electrical Safety Command',
-      assignedPerson: 'Rajesh Sharma (Chief Electrical Auditor)',
-      dueDate: '2026-09-04',
-      priority: 'P1 - Critical',
-      status: 'Overdue',
-      progress: 40,
-      site: 'Plant 01'
-    },
-    {
-      id: 'CAPA-2026-083',
-      title: 'Grating Void Replacement & Walkway Kick-Plate Audit',
-      description: 'Fit galvanized steel grating and self-closing gates on Level 3 elevated process walkways above separation vessels.',
-      precursorRef: 'REP-ID001-0003',
-      assignedTo: 'Structural Maintenance Division',
-      assignedPerson: 'David Miller (Plant Superintendent)',
-      dueDate: '2026-09-09',
-      priority: 'P2 - High',
-      status: 'Open',
-      progress: 80,
-      site: 'Plant 02'
-    },
-    {
-      id: 'CAPA-2026-084',
-      title: 'Convex Mirror & Automated Speed Governor Deployment',
-      description: 'Install 4 safety convex mirrors and radar-activated floor speed limits along Warehouse logistics corridor.',
-      precursorRef: 'REP-ID001-0004',
-      assignedTo: 'Logistics HSE Oversight',
-      assignedPerson: 'Elena Rostova (Warehouse Safety Officer)',
-      dueDate: '2026-09-12',
-      priority: 'P2 - High',
-      status: 'Open',
-      progress: 30,
-      site: 'Plant 04'
-    },
-    {
-      id: 'CAPA-2026-080',
-      title: 'Whip-Check Wire Harness Installation on HP Purge Headers',
-      description: 'Equip all 16 nitrogen purge hose couplings with double-clamped stainless whip-checks.',
-      precursorRef: 'REP-ID001-0005',
-      assignedTo: 'Process Engineering Operations',
-      assignedPerson: 'Tariq Al-Mansoor (Senior Process Specialist)',
-      dueDate: '2026-09-02',
-      priority: 'P1 - Critical',
-      status: 'Completed',
-      progress: 100,
-      site: 'Plant 05'
-    }
-  ]);
+  useEffect(() => {
+    const unsub = subscribeSafetyStore(setStoreState);
+    return unsub;
+  }, []);
+
+  const actions = useMemo(() => {
+    const reports = storeState.reports || [];
+    if (reports.length === 0) return [];
+    return reports
+      .filter(r => r.recommended_action || r.identified_hazard)
+      .map((r, i) => {
+        const isCrit = r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical';
+        const isComplete = r.status === 'Complete';
+        return {
+          id: `CAPA-${r.report_reference || String(i + 1).padStart(4, '0')}`,
+          title: r.recommended_action || r.identified_hazard || 'Barrier Verification Action',
+          description: r.description,
+          precursorRef: r.report_reference || `REP-${i + 1}`,
+          assignedTo: 'Operational HSE Integrity Team',
+          assignedPerson: 'Site HSE Specialist',
+          dueDate: r.report_date || '2026-09-10',
+          priority: isCrit ? 'P1 - Critical' : 'P2 - High',
+          status: isComplete ? 'Completed' : 'Open',
+          progress: isComplete ? 100 : 45,
+          site: r.location || 'Unit 1'
+        };
+      });
+  }, [storeState.reports]);
+
+  const openCount = actions.filter(a => a.status === 'Open').length;
+  const criticalCount = actions.filter(a => a.priority.includes('P1')).length;
+  const completedCount = actions.filter(a => a.status === 'Completed').length;
 
   const filteredActions = actions.filter((act) => {
     if (filterPriority !== 'ALL' && !act.priority.includes(filterPriority)) return false;
@@ -102,7 +69,7 @@ export default function CorrectiveActionsView() {
               <CheckSquare className="w-5 h-5" />
             </div>
             <h2 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
-              Corrective & Preventive Action (CAPA) Console
+              Corrective &amp; Preventive Action (CAPA) Console
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1 ml-12">
@@ -113,7 +80,7 @@ export default function CorrectiveActionsView() {
         <div className="flex items-center gap-2">
           <div className="px-4 py-2 rounded-xl bg-white border border-[#EAE6E1] text-xs font-mono text-slate-700 shadow-xs flex items-center gap-2">
             <span>Total Queue:</span>
-            <strong className="text-[#FF5A36] font-bold text-sm">126 Actions Active</strong>
+            <strong className="text-[#FF5A36] font-bold text-sm">{actions.length} Actions Active</strong>
           </div>
         </div>
       </div>
@@ -124,7 +91,7 @@ export default function CorrectiveActionsView() {
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] flex items-center justify-between shadow-xs">
           <div>
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Open Actions</div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-heading mt-1">126</div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-heading mt-1">{openCount}</div>
             <span className="text-xs text-[#FF5A36] font-medium mt-1 inline-block">Assigned to field engineers</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#FFF1EE] border border-[#FFE0D6] text-[#FF5A36] flex items-center justify-center shadow-xs">
@@ -134,9 +101,9 @@ export default function CorrectiveActionsView() {
 
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] flex items-center justify-between shadow-xs">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Overdue Critical Items</div>
-            <div className="text-2xl sm:text-3xl font-black text-rose-600 font-heading mt-1">18</div>
-            <span className="text-xs text-rose-600 font-medium mt-1 inline-block">Requires immediate escalation</span>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Overdue / Critical Items</div>
+            <div className="text-2xl sm:text-3xl font-black text-rose-600 font-heading mt-1">{criticalCount}</div>
+            <span className="text-xs text-rose-600 font-medium mt-1 inline-block">High-risk barrier breaches</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shadow-xs">
             <Clock className="w-6 h-6" />
@@ -145,9 +112,9 @@ export default function CorrectiveActionsView() {
 
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] flex items-center justify-between shadow-xs">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Completed This Month</div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-heading mt-1">412</div>
-            <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">91.4% barrier reliability rate</span>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Completed Actions</div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-heading mt-1">{completedCount}</div>
+            <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">Verified barrier restorations</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shadow-xs">
             <CheckCircle2 className="w-6 h-6" />
@@ -195,7 +162,28 @@ export default function CorrectiveActionsView() {
 
       {/* Actions List Cards */}
       <div className="space-y-4">
-        {filteredActions.map((item) => (
+        {actions.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border-2 border-dashed border-stone-200 text-xs text-slate-500 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF5A36] flex items-center justify-center mx-auto border border-orange-200">
+              <CheckSquare className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-slate-800 text-base">No Corrective Actions Queued</p>
+            <p className="text-slate-500 max-w-md mx-auto text-xs">
+              Corrective and preventive action (CAPA) items are generated when safety reports with barrier failures or recommendations are processed.
+            </p>
+          </div>
+        ) : filteredActions.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border border-stone-200 text-xs text-slate-500 space-y-2">
+            <p className="font-semibold text-slate-700 text-sm">No actions found matching the selected filters.</p>
+            <button
+              onClick={() => { setFilterPriority('ALL'); setFilterStatus('ALL'); }}
+              className="mt-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          </div>
+        ) : (
+          filteredActions.map((item) => (
           <div 
             key={item.id}
             className="p-5 rounded-2xl bg-white border border-[#EAE6E1] hover:border-[#FF5A36]/30 hover:shadow-md transition-all shadow-xs space-y-4"
@@ -261,10 +249,10 @@ export default function CorrectiveActionsView() {
                 </div>
               </div>
             </div>
-
           </div>
-        ))}
-      </div>
+        ))
+      )}
+    </div>
 
     </div>
   );

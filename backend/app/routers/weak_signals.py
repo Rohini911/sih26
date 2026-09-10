@@ -17,6 +17,9 @@ router = APIRouter(prefix="/api/weak-signals", tags=["Weak Signals Intelligence"
 class WeakSignalReviewRequest(BaseModel):
     status: str
     notes: Optional[str] = None
+    decision: Optional[str] = None  # Confirmed, Not Relevant / Incorrect, Relevant but Low Importance
+    reviewer: Optional[str] = None
+
 
 class CorrelateReportsRequest(BaseModel):
     reports: List[Dict[str, Any]]
@@ -58,16 +61,19 @@ def review_weak_signal(
     db: Session = Depends(get_db)
 ):
     """
-    Persists auditor review status and directives in the database
+    Persists auditor review status, human classification decision, and directives in the database
     with strict completion locking enforcement.
     """
     try:
+        reviewer_name = payload.reviewer or (current_user.email if current_user else "Auditor")
         return update_weak_signal_review(
             db=db,
             org_id=current_user.organization_id,
             signal_id=signal_id,
             status=payload.status,
-            notes=payload.notes
+            notes=payload.notes,
+            decision=payload.decision,
+            reviewer=reviewer_name
         )
     except ValueError as e:
         raise HTTPException(

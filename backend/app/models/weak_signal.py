@@ -42,6 +42,12 @@ class WeakSignal(Base):
     detection_reason = Column(Text, nullable=True)
     escalation_path = Column(Text, nullable=True)
     recommended_action = Column(Text, nullable=True)
+    
+    # Traceable evidence structures
+    similarity_evidence = Column(JSON, default=dict, nullable=True)
+    temporal_evidence = Column(JSON, default=dict, nullable=True)
+    spatial_evidence = Column(JSON, default=dict, nullable=True)
+    
     status = Column(String(50), default="Under Review", nullable=False)  # Under Review, Escalated, Mitigated, Completed
     reviewer_notes = Column(Text, nullable=True)
     
@@ -60,7 +66,9 @@ class WeakSignalReview(Base):
     organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     signal_id = Column(String(50), nullable=False, index=True)
     status = Column(String(50), default="Under Review", nullable=False)
-    reviewer_notes = Column(Text, nullable=True)
+    decision = Column(String(100), nullable=True)  # Confirmed, Not Relevant / Incorrect, Relevant but Low Importance
+    reviewer = Column(String(100), nullable=True)  # Reviewer email/name
+    reviewer_notes = Column(Text, nullable=True)    # Feedback/rationale
     reviewed_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     organization = relationship("Organization", back_populates="weak_signal_reviews")

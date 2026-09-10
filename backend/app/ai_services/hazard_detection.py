@@ -68,16 +68,16 @@ def detect_hazard(text: str) -> Optional[str]:
     if re.search(r'\b(electrical|live wire|voltage|high voltage|panel|switchboard|switchgear|arc flash|energized|shock|breaker|conduit|cable cut)\b', lower_text):
         return "Electrical Arc Flash & Shock Hazard (Electrical Energy)"
 
-    # 12. Confined Space
-    if re.search(r'\b(confined space|tank entry|vessel entry|manhole|pit entry)\b', lower_text):
-        return "Confined Space & Atmospheric Hazard"
+    # 12. Confined Space & Atmospheric Hazard
+    if re.search(r'\b(confined space|tank entry|vessel entry|entering the vessel|entered the vessel|inside the vessel|inside the tank|manhole|pit entry|atmospheric monitoring|gas testing)\b', lower_text):
+        return "Atmospheric / Confined Space"
 
     # 13. Stored Pressure / Pressurized Lines
     if re.search(r'\b(loto|lockout|tagout|pressurized|pressure|high[- ]pressure|hydraulic|steam|line break|hydrotest|blowout|stored pressure|pipeline pressure)\b', lower_text):
         return "Hazardous Energy & Pressurized Line Release"
 
     # 14. Fire & Thermal
-    if re.search(r'\b(fire|hot work|welding|sparks|combustible|flammable liquid|hydrocarbon spill|flash)\b', lower_text):
+    if re.search(r'\b(fire|hot work|welding|sparks|combustible|flammable liquid|hydrocarbon spill|flash|heat|burn|heat exposure|thermal)\b', lower_text):
         return "Fire & Thermal Ignition Hazard"
 
     # 15. Chemical Exposure
@@ -97,3 +97,4 @@ def detect_hazard(text: str) -> Optional[str]:
         return "Lighting & Visibility Defect"
 
     return None
+

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -9,7 +9,9 @@ import {
   Activity,
   Layers,
   MapPin,
-  Calendar
+  Calendar,
+  Inbox,
+  UploadCloud
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -17,33 +19,89 @@ import {
   Area,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend
+  Tooltip as RechartsTooltip
 } from 'recharts';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
 
-export default function AnalyticsView() {
-  // Monthly Incident vs Near Miss vs SIF Precursor Trend for the 6 reports
-  const monthlyComparison = [
-    { month: 'Apr', totalIncidents: 1, nearMisses: 0, sifPrecursors: 0 },
-    { month: 'May', totalIncidents: 2, nearMisses: 0, sifPrecursors: 1 },
-    { month: 'Jun', totalIncidents: 3, nearMisses: 0, sifPrecursors: 1 },
-    { month: 'Jul', totalIncidents: 4, nearMisses: 1, sifPrecursors: 2 },
-    { month: 'Aug', totalIncidents: 5, nearMisses: 1, sifPrecursors: 2 },
-    { month: 'Sep (Current)', totalIncidents: 6, nearMisses: 1, sifPrecursors: 3 },
-  ];
+export default function AnalyticsView({ onNavigate }) {
+  const [reports, setReports] = useState(() => {
+    const s = getStoreState();
+    return s.isWiped ? [] : (s.reports || []);
+  });
 
-  // Site Benchmark Scores & Hazard Frequency for active sites
-  const plantBenchmarkData = [
-    { site: 'Drilling Rig 04', safetyScore: 78, criticalHazards: 1, compliance: 85 },
-    { site: 'Main Substation A', safetyScore: 82, criticalHazards: 1, compliance: 88 },
-    { site: 'Separator B-12', safetyScore: 72, criticalHazards: 1, compliance: 82 },
-    { site: 'Admin East Wing', safetyScore: 98, criticalHazards: 0, compliance: 99 },
-  ];
+  useEffect(() => {
+    const unsub = subscribeSafetyStore((s) => {
+      setReports(s.isWiped ? [] : (s.reports || []));
+    });
+    return unsub;
+  }, []);
+
+  // Compute metrics from actual real reports
+  const totalObservations = reports.length;
+  const analyzedReports = reports.filter(r => r.sif_precursor_assessment || r.ai_analysis).length;
+  const sifCount = reports.filter(r => r.sif_precursor_assessment === 'YES' || r.ai_analysis?.sif_precursor_assessment === 'YES').length;
+  const nearMissCount = reports.filter(r => {
+    const t = (r.report_type || '').toUpperCase();
+    return t.includes('NEAR') || t.includes('MISS');
+  }).length;
+  const incidentCount = reports.filter(r => {
+    const t = (r.report_type || '').toUpperCase();
+    return t.includes('INCIDENT');
+  }).length;
+
+  // Near miss to SIF ratio
+  const nearMissToSifRatio = sifCount > 0 
+    ? `${(nearMissCount / sifCount).toFixed(1)} : 1`
+    : nearMissCount > 0 ? `${nearMissCount} : 0` : '0 : 0';
+
+  // TRIR based on real incidents (standard OSHA TRIR formula: (Incidents * 200,000) / hours; with default baseline 0.00 if 0 incidents)
+  const trirScore = totalObservations > 0 ? ((incidentCount * 200000) / Math.max(totalObservations * 1000, 200000)).toFixed(2) : '0.00';
+
+  // Composite Safety Score based on SIF rate
+  const compositeSafetyScore = totalObservations > 0 
+    ? Math.max(0, Math.min(100, Math.round((1 - (sifCount / totalObservations)) * 100))) + '%'
+    : '0.0%';
+
+  // Build Monthly Trend from real reports
+  const monthlyMap = {};
+  reports.forEach(r => {
+    const d = r.report_date ? new Date(r.report_date) : new Date();
+    const monthKey = isNaN(d.getTime()) 
+      ? 'Current' 
+      : d.toLocaleString('en-US', { month: 'short' });
+    if (!monthlyMap[monthKey]) {
+      monthlyMap[monthKey] = { month: monthKey, totalIncidents: 0, nearMisses: 0, sifPrecursors: 0 };
+    }
+    const t = (r.report_type || '').toUpperCase();
+    if (t.includes('INCIDENT')) monthlyMap[monthKey].totalIncidents++;
+    if (t.includes('NEAR')) monthlyMap[monthKey].nearMisses++;
+    if (r.sif_precursor_assessment === 'YES' || r.ai_analysis?.sif_precursor_assessment === 'YES') {
+      monthlyMap[monthKey].sifPrecursors++;
+    }
+  });
+  const monthlyComparison = Object.values(monthlyMap);
+
+  // Build Site Benchmark from real reports
+  const siteMap = {};
+  reports.forEach(r => {
+    const site = r.location || 'Main Facility';
+    if (!siteMap[site]) {
+      siteMap[site] = { site, total: 0, criticalHazards: 0 };
+    }
+    siteMap[site].total++;
+    if (r.sif_precursor_assessment === 'YES' || r.ai_analysis?.sif_precursor_assessment === 'YES') {
+      siteMap[site].criticalHazards++;
+    }
+  });
+  const plantBenchmarkData = Object.values(siteMap).map(s => ({
+    site: s.site.length > 18 ? s.site.slice(0, 18) + '...' : s.site,
+    safetyScore: Math.max(10, Math.round(100 - (s.criticalHazards / Math.max(s.total, 1) * 80))),
+    compliance: Math.max(20, Math.round(100 - (s.criticalHazards / Math.max(s.total, 1) * 50))),
+    criticalHazards: s.criticalHazards
+  }));
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -83,8 +141,8 @@ export default function AnalyticsView() {
 
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 rounded-xl bg-white border border-[#EAE6E1] text-xs font-mono text-slate-700 shadow-xs flex items-center gap-2">
-            <span>Historical Ingestion:</span>
-            <strong className="text-[#FF5A36] font-bold text-sm">7 Months</strong>
+            <span>Operational Records:</span>
+            <strong className="text-[#FF5A36] font-bold text-sm">{totalObservations} Ingested</strong>
           </div>
         </div>
       </div>
@@ -93,26 +151,40 @@ export default function AnalyticsView() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Observations</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 font-heading mt-1">12,450</div>
-          <span className="text-xs text-emerald-600 font-bold mt-1 inline-block">+12.8% reporting culture</span>
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 font-heading mt-1">{totalObservations}</div>
+          <span className="text-xs text-slate-400 font-medium mt-1 inline-block">
+            {totalObservations > 0 ? `${analyzedReports} analyzed via NLP` : 'Awaiting submitted reports'}
+          </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">TRIR (Injury Rate)</span>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-heading mt-1">0.14</div>
-          <span className="text-xs text-emerald-600 font-bold mt-1 inline-block">-28% vs industry average</span>
+          <div className={`text-2xl sm:text-3xl font-black font-heading mt-1 ${totalObservations > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {trirScore}
+          </div>
+          <span className="text-xs text-slate-400 font-medium mt-1 inline-block">
+            {totalObservations > 0 ? `${incidentCount} recordable incidents` : 'Zero operational events recorded'}
+          </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Near-Miss to SIF Ratio</span>
-          <div className="text-2xl sm:text-3xl font-black text-[#FF5A36] font-heading mt-1">6.8 : 1</div>
-          <span className="text-xs text-slate-500 font-medium mt-1 inline-block">Healthy weak-signal capture</span>
+          <div className={`text-2xl sm:text-3xl font-black font-heading mt-1 ${totalObservations > 0 ? 'text-[#FF5A36]' : 'text-slate-400'}`}>
+            {nearMissToSifRatio}
+          </div>
+          <span className="text-xs text-slate-400 font-medium mt-1 inline-block">
+            {totalObservations > 0 ? `${nearMissCount} near misses : ${sifCount} SIFs` : 'Zero precursor records'}
+          </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-[#EAE6E1] shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Composite Safety Score</span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 font-heading mt-1">91.4%</div>
-          <span className="text-xs text-purple-600 font-bold mt-1 inline-block">Top quartile performance</span>
+          <div className={`text-2xl sm:text-3xl font-black font-heading mt-1 ${totalObservations > 0 ? 'text-purple-600' : 'text-slate-400'}`}>
+            {compositeSafetyScore}
+          </div>
+          <span className="text-xs text-slate-400 font-medium mt-1 inline-block">
+            {totalObservations > 0 ? 'Calculated from barrier fidelity' : 'Awaiting baseline reports'}
+          </span>
         </div>
       </div>
 
@@ -139,33 +211,43 @@ export default function AnalyticsView() {
           </div>
         </div>
 
-        <div className="w-full h-80 pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={monthlyComparison} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#FF5A36" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#FF5A36" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="nearGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="precurGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="month" stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
-              <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
-              <RechartsTooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="totalIncidents" name="Incidents" stroke="#FF5A36" strokeWidth={2.5} fill="url(#incGrad)" />
-              <Area type="monotone" dataKey="nearMisses" name="Near Misses" stroke="#10B981" strokeWidth={2.5} fill="url(#nearGrad)" />
-              <Area type="monotone" dataKey="sifPrecursors" name="SIF Precursors" stroke="#F59E0B" strokeWidth={2.5} fill="url(#precurGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {monthlyComparison.length === 0 ? (
+          <div className="py-20 text-center space-y-2 border-2 border-dashed border-stone-100 rounded-xl">
+            <Inbox className="w-8 h-8 text-stone-300 mx-auto" />
+            <p className="text-sm font-bold text-slate-700">No Temporal Incident Records</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Trajectory graphs populate dynamically once field safety observations or incident logs are ingested.
+            </p>
+          </div>
+        ) : (
+          <div className="w-full h-80 pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyComparison} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#FF5A36" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#FF5A36" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="nearGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="precurGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="month" stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
+                <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
+                <RechartsTooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="totalIncidents" name="Incidents" stroke="#FF5A36" strokeWidth={2.5} fill="url(#incGrad)" />
+                <Area type="monotone" dataKey="nearMisses" name="Near Misses" stroke="#10B981" strokeWidth={2.5} fill="url(#nearGrad)" />
+                <Area type="monotone" dataKey="sifPrecursors" name="SIF Precursors" stroke="#F59E0B" strokeWidth={2.5} fill="url(#precurGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Chart 2: Cross-Plant Benchmarking & AI Analytics Insights */}
@@ -179,22 +261,32 @@ export default function AnalyticsView() {
               <p className="text-xs text-slate-400 mt-0.5">Comparative scoring (0-100) vs identified critical hazards</p>
             </div>
             <span className="px-3 py-1 rounded-lg bg-[#FFF1EE] text-[#FF5A36] border border-[#FFE0D6] text-xs font-mono font-bold">
-              4 Facilities
+              {plantBenchmarkData.length} {plantBenchmarkData.length === 1 ? 'Facility' : 'Facilities'}
             </span>
           </div>
 
-          <div className="w-full h-64 pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={plantBenchmarkData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="site" stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
-                <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} domain={[0, 100]} />
-                <RechartsTooltip content={<CustomTooltip />} />
-                <Bar dataKey="safetyScore" name="Safety Score" fill="#FF5A36" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="compliance" name="Compliance %" fill="#10B981" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {plantBenchmarkData.length === 0 ? (
+            <div className="py-16 text-center space-y-2 border-2 border-dashed border-stone-100 rounded-xl">
+              <Inbox className="w-8 h-8 text-stone-300 mx-auto" />
+              <p className="text-sm font-bold text-slate-700">No Facility Benchmarks Available</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Multi-facility comparative index will calculate as reports from different operating units are submitted.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full h-64 pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={plantBenchmarkData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="site" stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
+                  <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} domain={[0, 100]} />
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Bar dataKey="safetyScore" name="Safety Score" fill="#FF5A36" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="compliance" name="Compliance %" fill="#10B981" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* AI Predictive Analytics Insights (5 cols) */}
@@ -211,22 +303,31 @@ export default function AnalyticsView() {
             </div>
 
             <div className="mt-4 space-y-3 text-xs leading-relaxed text-slate-600">
-              <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
-                <strong className="text-slate-900">Lead Indicator Correlation:</strong> Analysis of 12,450 reports demonstrates that facilities maintaining a near-miss reporting velocity of &gt;50/month experience 72% fewer actual lost-time injuries.
-              </div>
+              {totalObservations === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-400 space-y-1">
+                  <p className="font-bold text-slate-700">Awaiting Operational Data</p>
+                  <p>Submit or upload real safety observations to enable AI correlation and hotspot detection.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
+                    <strong className="text-slate-900">Lead Indicator Correlation:</strong> Analysis across {totalObservations} live operational records indicates {nearMissCount} near misses logged vs {sifCount} potential SIF precursors.
+                  </div>
 
-              <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
-                <strong className="text-[#FF5A36]">High Risk Hotspot:</strong> Heavy rigging operations in Plant 03 account for 44% of potential crane excursion events. Automated exclusion laser boundaries recommended.
-              </div>
+                  <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
+                    <strong className="text-[#FF5A36]">SIF Precursor Density:</strong> {sifCount > 0 ? `${((sifCount / totalObservations) * 100).toFixed(1)}% of ingested reports exhibit critical energy or barrier failure signatures.` : 'No critical SIF precursors identified in active dataset.'}
+                  </div>
 
-              <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
-                <strong className="text-emerald-700">CAPA Effectiveness:</strong> Actions closed within 7 days showed a 91% zero-recurrence rate over a 90-day post-audit window.
-              </div>
+                  <div className="p-3.5 rounded-xl bg-white border border-[#EAE6E1] shadow-xs">
+                    <strong className="text-emerald-700">Facility Distribution:</strong> Telemetry spans {plantBenchmarkData.length} distinct operating location(s).
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           <div className="pt-2 text-[10px] text-slate-400 font-mono text-center border-t border-stone-100">
-            Algorithmic confidence: 94.7% • Model verified
+            Algorithmic Engine Active • Real Operational Telemetry
           </div>
         </div>
 

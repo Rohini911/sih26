@@ -18,12 +18,14 @@ def execute_ai_analysis(db: Session, report: SafetyReport) -> AIAnalysis:
     db.commit()
 
     try:
-        # Run 10-step AI pipeline
+        # Run 10-step AI pipeline on normalized description (falling back to original)
+        desc_to_analyze = report.normalized_description or report.description
         raw_result = analyze_safety_report(
             report_type=report.report_type,
-            description=report.description,
+            description=desc_to_analyze,
             additional_context=report.additional_context
         )
+
 
         # Check if existing analysis exists for re-runs
         analysis = db.query(AIAnalysis).filter(AIAnalysis.report_id == report.id).first()
@@ -251,10 +253,8 @@ def execute_direct_analysis(
         report_name = f"{norm_type.replace('_', ' ').title()} Observation ({location})"
 
     # 7. Check for duplicate using Issue #11 composite duplicate key
-    description_for_report = description[:100]
+    description_for_report = description
     extra_context = request.additional_context
-    if not extra_context and len(description) > 100:
-        extra_context = description[100:]
 
     report_create = SafetyReportCreate(
         report_type=norm_type,
@@ -263,6 +263,7 @@ def execute_direct_analysis(
         report_date=report_date,
         additional_context=extra_context
     )
+
 
     duplicate = find_duplicate_report(db, current_user.organization_id, report_create)
     is_duplicate = False
@@ -336,15 +337,34 @@ def execute_direct_analysis(
         barrier_status=barrier_status_desc,
         life_saving_rule=iogp_rule or default_lsr,
         iogp_rule=iogp_rule or default_lsr,
-        explainable_reasoning=explanation_text,
         explanation=explanation_text,
-        why_identified={"summary": explanation_text},
-        recommended_actions={
-            "immediate_actions": [{"action": c} for c in recommended_controls],
-            "corrective_actions": [{"action": a} for a in corrective_actions]
+        why_identified={
+            "summary": explanation_text,
+            "evidence_points": [
+                f"Hazard: {raw_result.get('identified_hazard') or 'General operational deviation'}",
+                f"Energy Vector: {energy_val}",
+                f"Worker Exposure: {raw_result.get('exposure') or 'None detected'}",
+                f"Barrier Condition: {barrier_status_desc}",
+                f"Life-Saving Rule: {iogp_rule or default_lsr}"
+            ],
+            "evidence_spans": [
+                {
+                    "field": "energy_source",
+                    "value": energy_val,
+                    "confidence": confidence,
+                    "source": "Operational Narrative Text"
+                },
+                {
+                    "field": "barrier_status",
+                    "value": barrier_status_desc,
+                    "confidence": confidence,
+                    "source": "Operational Narrative Text"
+                }
+            ]
         },
         recommended_controls=recommended_controls,
         corrective_actions=corrective_actions,
+
         weak_signals=ws_res.get("weak_signals", []),
         weak_signal_detected=ws_res.get("weak_signal_detected", False),
         weak_signal_id=ws_res.get("weak_signal_id"),

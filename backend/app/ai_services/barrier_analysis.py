@@ -38,10 +38,13 @@ def analyze_barriers(text: str) -> Dict[str, str]:
         }
 
     # 2. Missing Barriers (Omission, lack of required control)
-    if re.search(r'\b(without[\s_]harness|without[\s_]helmet|without[\s_]ppe|without[\s_]permit|no[\s_]permit|without[\s_]isolation|not[\s_]locked[\s_]out|guard[\s_]missing|no guard|missing guard|unbarricaded|no barricade|no lifeline|no toe[- ]board|no gas test)\b', lower_text):
+    if re.search(r'(gas testing\s+was\s+not\s+completed|without\s+atmospheric\s+monitoring|without\s+gas\s+test|not\s+completed\s+before\s+entering|\bwithout[\s_]harness|\bwithout[\s_]helmet|\bwithout[\s_]ppe|\bwithout[\s_]permit|\bno[\s_]permit|\bwithout[\s_]isolation|\bnot[\s_]locked[\s_]out|\bguard[\s_]missing|\bno guard|\bmissing guard|\bunbarricaded|\bno barricade|\bno lifeline|\bno toe[- ]board|\bno gas test)', lower_text):
+        desc = "A required safety barrier, personal protective control, or procedural authorization was omitted or not deployed."
+        if re.search(r'(gas test|atmospheric monitor|entering the vessel|entered the vessel)', lower_text):
+            desc = "Gas testing / atmospheric monitoring not completed before entering the vessel."
         return {
             "status": "BARRIER_MISSING",
-            "description": "A required safety barrier, personal protective control, or procedural authorization was omitted or not deployed."
+            "description": desc
         }
 
     # 3. Failed Barriers (Physical failure, structural breakdown, rupture, snapping)

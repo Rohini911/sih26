@@ -126,6 +126,86 @@ def mask_pii(text: str) -> str:
     return result
 
 
+# High-confidence safety domain spelling normalization dictionary
+SAFETY_SPELLING_MAP = {
+    "explouser": "exposure",
+    "exposur": "exposure",
+    "expusure": "exposure",
+    "exposer": "exposure",
+    "exposuer": "exposure",
+    "slipery": "slippery",
+    "slipry": "slippery",
+    "slippry": "slippery",
+    "slipary": "slippery",
+    "leek": "leak",
+    "leeking": "leaking",
+    "leekage": "leakage",
+    "injurd": "injured",
+    "injuried": "injured",
+    "ingured": "injured",
+    "saftey": "safety",
+    "safty": "safety",
+    "electical": "electrical",
+    "electic": "electric",
+    "electircal": "electrical",
+    "elctrical": "electrical",
+    "barir": "barrier",
+    "barrer": "barrier",
+    "barriar": "barrier",
+    "chemcial": "chemical",
+    "chemiacl": "chemical",
+    "pressur": "pressure",
+    "presure": "pressure",
+    "wellding": "welding",
+    "weldng": "welding",
+    "flamable": "flammable",
+    "temprature": "temperature",
+    "tempreture": "temperature",
+    "temparature": "temperature",
+    "scafold": "scaffold",
+    "scafolding": "scaffolding",
+    "extingwisher": "extinguisher",
+    "extingsher": "extinguisher",
+    "hazad": "hazard",
+    "hazrd": "hazard",
+    "helmit": "helmet",
+    "helmt": "helmet",
+    "harnes": "harness",
+    "entery": "entry",
+    "atmostpheric": "atmospheric",
+    "atmoshperic": "atmospheric",
+    "monitering": "monitoring",
+    "inured": "injured",
+    "valv": "valve",
+    "cylender": "cylinder",
+}
+
+
+def normalize_safety_spelling(text: str) -> str:
+    """
+    Normalizes high-confidence spelling mistakes and phonetic variants
+    in frontline safety reports (e.g. 'explouser' -> 'exposure') without altering standard text.
+    """
+    if not text:
+        return ""
+
+    tokens = text.split()
+    corrected_tokens = []
+    for tok in tokens:
+        # Strip trailing punctuation for dictionary check
+        clean_tok = re.sub(r'^[^\w]+|[^\w]+$', '', tok).lower()
+        if clean_tok in SAFETY_SPELLING_MAP:
+            replacement = SAFETY_SPELLING_MAP[clean_tok]
+            # preserve original punctuation
+            prefix = tok[:len(tok) - len(tok.lstrip('.,!?;:"\'()[]{}'))]
+            suffix = tok[len(tok.rstrip('.,!?;:"\'()[]{}')):]
+            corrected_tokens.append(f"{prefix}{replacement}{suffix}")
+        else:
+            corrected_tokens.append(tok)
+
+    return " ".join(corrected_tokens)
+
+
 def preserve_negations(text: str) -> str:
     """
     Identifies safety compound negations and binds them into unified tokens
@@ -149,9 +229,10 @@ def preprocess_text(text: str, mask_personal_data: bool = True) -> str:
     Steps:
     1. Handle empty / null input
     2. Normalize line breaks and multiple whitespaces
-    3. Mask PII if enabled
-    4. Bind critical compound negations (e.g. 'without helmet' -> 'without_helmet')
-    5. Clean redundant whitespace
+    3. Normalize safety domain spelling errors (e.g. explouser -> exposure)
+    4. Mask PII if enabled
+    5. Bind critical compound negations (e.g. 'without helmet' -> 'without_helmet')
+    6. Clean redundant whitespace
     """
     if not text or not isinstance(text, str):
         return ""
@@ -160,14 +241,17 @@ def preprocess_text(text: str, mask_personal_data: bool = True) -> str:
     cleaned = re.sub(r'[\r\n\t]+', ' ', text)
     cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
 
-    # 2. PII Masking
+    # 2. Spelling normalization for safety vocabulary
+    cleaned = normalize_safety_spelling(cleaned)
+
+    # 3. PII Masking
     if mask_personal_data:
         cleaned = mask_pii(cleaned)
 
-    # 3. Negation preservation
+    # 4. Negation preservation
     cleaned = preserve_negations(cleaned)
 
-    # 4. Final whitespace clean
+    # 5. Final whitespace clean
     cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
     return cleaned
 

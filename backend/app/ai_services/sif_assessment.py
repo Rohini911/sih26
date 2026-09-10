@@ -59,11 +59,11 @@ def compute_maut_risk_score(
 
     # Attribute 1: Energy Severity (0 - 30)
     energy_score = 6
-    if any(k in e_low or k in h_low for k in ["high-voltage", "11kv", "415v", "arc flash", "pressure", "pneumatic", "blowout", "h2s", "toxic", "fire", "thermal"]):
+    if any(k in e_low or k in h_low for k in ["electrical", "high-voltage", "11kv", "415v", "arc flash", "pressure", "pneumatic", "hydraulic", "high_pressure", "blowout", "toxic", "atmospheric", "h2s", "fire", "thermal", "heat"]):
         energy_score = 28
     elif any(k in e_low or k in h_low for k in ["gravity", "suspended load", "dropped object", "fall from height", "work at height", "scaffold", "crane"]):
         energy_score = 24
-    elif any(k in e_low or k in h_low for k in ["kinetic", "mobile equipment", "forklift", "vehicle", "rotating machinery", "chemical"]):
+    elif any(k in e_low or k in h_low for k in ["kinetic", "mobile equipment", "forklift", "vehicle", "rotating machinery", "chemical", "multiple"]):
         energy_score = 18
     elif any(k in h_low for k in ["slip", "trip", "housekeeping"]):
         energy_score = 6
@@ -72,7 +72,7 @@ def compute_maut_risk_score(
     exposure_score = 5
     if any(k in ex_low for k in ["line-of-fire", "under suspended load", "direct physical proximity", "live electrical", "fall edge"]):
         exposure_score = 22
-    elif any(k in ex_low for k in ["confined space", "trajectory", "rotating machinery", "near elevation"]):
+    elif any(k in ex_low for k in ["confined space", "trajectory", "rotating machinery", "near elevation", "thermal", "heat"]):
         exposure_score = 17
     elif any(k in ex_low for k in ["not exposed", "not_exposed", "zero exposure"]):
         exposure_score = 2
@@ -123,7 +123,7 @@ def assess_sif_precursor(
     cleaned_len = len((text or "").strip().split())
 
     # 1. Check for Insufficient Information
-    if cleaned_len < 4 or (hazard is None and not signals and (energy_source is None or energy_source == "Insufficient Information")):
+    if cleaned_len < 4 or (hazard is None and not signals and (energy_source is None or energy_source in ["UNKNOWN", "Insufficient Information"])):
         return {
             "assessment": "INSUFFICIENT_INFORMATION",
             "rule_based_assessment": "INSUFFICIENT_INFORMATION",
@@ -158,12 +158,18 @@ def assess_sif_precursor(
 
     # 3. Rule-Based Safety Evidence Evaluation
     h_low = (hazard or "").lower()
+    e_low = (energy_source or "").lower()
+
     is_high_energy = (
-        energy_source in ["Electrical", "Pneumatic / High Pressure", "Chemical", "Thermal", "Gravity"] or
-        any(k in h_low for k in [
+        energy_source in [
+            "GRAVITY", "KINETIC", "ELECTRICAL", "THERMAL", "CHEMICAL",
+            "HIGH_PRESSURE / PNEUMATIC / HYDRAULIC", "TOXIC / ATMOSPHERIC", "MULTIPLE",
+            "Electrical", "Pneumatic / High Pressure", "Chemical", "Thermal", "Gravity"
+        ] or
+        any(k in h_low or k in e_low for k in [
             "suspended load", "dropped object", "fall from height", "work at height",
-            "arc flash", "electrical", "confined space", "high pressure", "gas leak",
-            "blowout", "toxic gas", "vehicle", "crane", "flame", "thermal"
+            "arc flash", "electrical", "confined space", "atmospheric", "high pressure", "gas leak",
+            "blowout", "toxic gas", "vehicle", "crane", "flame", "thermal", "heat"
         ])
     )
     is_minor_slip = any(k in h_low for k in ["slip", "trip", "surface housekeeping"]) and not is_high_energy
@@ -209,7 +215,7 @@ def assess_sif_precursor(
         final_decision = "NON-SIF OBSERVATION"
         ai_class = "Non-SIF-potential"
 
-    # 5. Risk Score vs AI Confidence (Requirement 7: Kept strictly separate)
+    # 5. Risk Score vs AI Confidence
     risk_score = compute_maut_risk_score(hazard, energy_source, exposure, barrier_status, text)
 
     # Dynamic AI Confidence represents model/evidence certainty
@@ -218,25 +224,32 @@ def assess_sif_precursor(
         conf_base = max(conf_base, ml_sif_confidence * 100)
     if hazard and hazard != "Insufficient Information":
         conf_base += 4.0
-    if energy_source and energy_source != "Insufficient Information":
+    if energy_source and energy_source not in ["UNKNOWN", "Insufficient Information"]:
         conf_base += 4.0
     if barrier_status != "BARRIER_INSUFFICIENT_INFO":
         conf_base += 3.0
     ai_confidence = min(96.8, round(conf_base, 1))
 
     # Consequence summary
-    if is_high_energy and "electrical" in (energy_source or "").lower():
+    if is_high_energy and any(k in e_low for k in ["electrical"]):
         potential_consequence = "Potential high-voltage electrical shock, severe arc flash thermal burns, or electrocution."
-    elif is_high_energy and "pressure" in (energy_source or "").lower():
+    elif is_high_energy and any(k in e_low for k in ["pressure", "pneumatic", "hydraulic"]):
         potential_consequence = "Potential high-pressure fluid injection, line blowout impact, or mechanical strike."
-    elif is_high_energy and "gravity" in (energy_source or "").lower():
+    elif is_high_energy and any(k in e_low for k in ["gravity"]):
         potential_consequence = "Potential severe blunt force trauma, crush injury, or fatality from falling mass/fall from height."
-    elif is_high_energy and "chemical" in (energy_source or "").lower():
-        potential_consequence = "Potential acute toxic gas asphyxiation or corrosive chemical contamination."
+    elif is_high_energy and any(k in e_low for k in ["toxic", "atmospheric"]):
+        potential_consequence = "Potential acute toxic gas asphyxiation or oxygen deficiency in confined space."
+    elif is_high_energy and any(k in e_low for k in ["chemical"]):
+        potential_consequence = "Potential hazardous chemical contamination or chemical burns."
+    elif is_high_energy and any(k in e_low for k in ["thermal"]):
+        potential_consequence = "Potential severe thermal burns or flash fire injuries from extreme heat exposure."
+    elif is_high_energy and any(k in e_low for k in ["kinetic"]):
+        potential_consequence = "Potential heavy impact trauma, crushing injury, or caught-between machinery trauma."
     elif is_minor_slip:
         potential_consequence = "Potential low-severity surface slip or minor localized contusion."
     else:
         potential_consequence = "Low-to-moderate operational hazard without immediate life-threatening potential."
+
 
     return {
         "assessment": "YES" if ai_class == "SIF-potential" else "NO",

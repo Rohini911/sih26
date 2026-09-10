@@ -134,11 +134,15 @@ export default function WeekSignalsView({ onNavigate }) {
       }
 
       if (backendData && Array.isArray(backendData.weak_signals)) {
+        const sigs = backendData.weak_signals;
+        const avgConf = sigs.length > 0 
+          ? (sigs.reduce((sum, s) => sum + (s.risk_score || s.correlation_score || 80), 0) / sigs.length).toFixed(1) 
+          : 0;
         setSummary(backendData.summary || {
-          total_active_signals: backendData.weak_signals.length,
-          high_risk_precursors: backendData.weak_signals.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
-          escalating_patterns: backendData.weak_signals.filter(s => s.risk_score && s.risk_score >= 80).length,
-          average_confidence: backendData.weak_signals.length > 0 ? 95.8 : 0
+          total_active_signals: sigs.length,
+          high_risk_precursors: sigs.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
+          escalating_patterns: sigs.filter(s => s.risk_score && s.risk_score >= 80).length,
+          average_confidence: avgConf
         });
         setSignals(backendData.weak_signals);
         if (Array.isArray(backendData.emerging_clusters) && backendData.emerging_clusters.length > 0) {
@@ -174,23 +178,29 @@ export default function WeekSignalsView({ onNavigate }) {
         }
       } else {
         const stored = getStoredWeakSignals();
+        const avgConf = stored.length > 0 
+          ? (stored.reduce((sum, s) => sum + (s.risk_score || s.correlation_score || 80), 0) / stored.length).toFixed(1) 
+          : 0;
         setSignals(stored);
         setSummary({
           total_active_signals: stored.length,
           high_risk_precursors: stored.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
           escalating_patterns: stored.filter(s => s.risk_score && s.risk_score >= 80).length,
-          average_confidence: stored.length > 0 ? 95.8 : 0
+          average_confidence: avgConf
         });
       }
     } catch (err) {
       console.error('Failed to load weak signals:', err);
       const stored = getStoredWeakSignals();
+      const avgConf = stored.length > 0 
+        ? (stored.reduce((sum, s) => sum + (s.risk_score || s.correlation_score || 80), 0) / stored.length).toFixed(1) 
+        : 0;
       setSignals(stored);
       setSummary({
         total_active_signals: stored.length,
         high_risk_precursors: stored.filter(s => s.risk_level === 'High' || (s.risk_score && s.risk_score >= 90)).length,
         escalating_patterns: stored.filter(s => s.risk_score && s.risk_score >= 80).length,
-        average_confidence: stored.length > 0 ? 95.8 : 0
+        average_confidence: avgConf
       });
     } finally {
       setLoading(false);
@@ -1082,6 +1092,24 @@ export default function WeekSignalsView({ onNavigate }) {
           <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 space-y-3">
             <RefreshCw className="w-6 h-6 text-[#FF5A36] animate-spin mx-auto" />
             <p>Querying dynamic weak signal clusters and neural assessments from backend...</p>
+          </div>
+        ) : signals.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border-2 border-dashed border-stone-200 text-xs text-slate-500 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF5A36] flex items-center justify-center mx-auto border border-orange-200">
+              <Activity className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-slate-800 text-base">No Emerging Weak Signals Detected</p>
+            <p className="text-slate-500 max-w-md mx-auto text-xs">
+              Weak signals emerge automatically from operational data when repeated anomalies, recurring minor observations, or barrier degradations are detected across reports.
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigate && onNavigate('/bulk-upload')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FF5A36] hover:bg-[#e64a27] text-white text-xs font-bold shadow-md cursor-pointer transition-all"
+            >
+              <span>Submit or Upload Operational Reports</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         ) : filteredSignals.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 space-y-2">

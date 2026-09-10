@@ -44,7 +44,6 @@ import {
   getStoreState, 
   subscribeSafetyStore, 
   evaluateSIFPrecursor,
-  DEFAULT_20_SAMPLE_RECORDS,
   extractUnitKey
 } from '../../services/safetyStore';
 
@@ -229,74 +228,21 @@ export default function BulkUploadView({ onNavigate }) {
     }
   };
 
-  // Download official 5-field template with TODAY'S DATE (20 verified records, Reference auto-generated)
+  // Download official 5-field blank CSV template
   const downloadStandardTemplate = () => {
-    const today = getTodayDateString();
-    let csvContent = "Date,Site,Report Type,Description,Hazard\n";
-    DEFAULT_20_SAMPLE_RECORDS.forEach((r) => {
-      csvContent += `${today},${r.Site},${r['Report Type']},"${(r.Description || '').replace(/"/g, '""')}","${(r.Hazard || '').replace(/"/g, '""')}"\n`;
-    });
-    
+    const csvContent = "Date,Site,Report Type,Description,Hazard\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `standard_5_field_safety_register_${today}.csv`);
+    link.setAttribute('download', `safety_register_template.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('info', '5-field template downloaded with 20 verified records dated today (Reference IDs will be auto-generated).');
+    showToast('info', 'Standard 5-field CSV template downloaded.');
   };
 
   // Helper CSV parser handling commas within quotes
-  const parseCSVRows = (text) => {
-    const lines = text.split(/\r\n|\n/).map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length < 2) return [];
-    
-    const rawHeaders = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(f => f.replace(/^["']|["']$/g, '').trim());
-    const rows = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(f => f.replace(/^["']|["']$/g, '').trim());
-      if (vals.length === 0 || (vals.length === 1 && !vals[0])) continue;
-      const rowObj = {};
-      rawHeaders.forEach((h, idx) => {
-        rowObj[h] = vals[idx] !== undefined ? vals[idx] : '';
-      });
-      rows.push(rowObj);
-    }
-    return rows;
-  };
-
-  // 1-Click Quick-Load Today's Register (all 20 records with auto-generated IDs) - Demo feature
-  const handleQuickLoadTodaySample = () => {
-    const today = getTodayDateString();
-    const sampleRows = DEFAULT_20_SAMPLE_RECORDS.map((r, idx) => ({
-      Reference: `REP-ID001-${String(idx + 1).padStart(4, '0')}`,
-      Date: today,
-      Site: r.Site,
-      'Report Type': r['Report Type'],
-      Description: (r.Description || '').trim(),
-      Hazard: r.Hazard
-    }));
-
-    const fakeFile = {
-      name: `incident_register_today_${today}.csv`,
-      size: 4680
-    };
-
-    setSelectedFile(fakeFile);
-    setParsedRows(sampleRows);
-    setValidationError(null);
-    setValidationSuccess({
-      title: 'SCHEMA VERIFIED: 5 CORE FIELDS & AUTO-GENERATED IDs',
-      message: `All 5 required fields verified across ${sampleRows.length} sample records. Reference IDs (REP-ID001-XXXX) auto-generated. Ready for AI batch ingestion starting from today (${today}).`,
-      count: 5,
-      headers: REQUIRED_FIELDS
-    });
-    setUploadComplete(false);
-    showToast('info', `Loaded all ${sampleRows.length} safety records with today's date (${today}) and auto-generated IDs. Click "Execute AI Ingestion" below.`);
-  };
 
   const validateAndSetFile = (file) => {
     if (!file) return;
@@ -587,20 +533,6 @@ export default function BulkUploadView({ onNavigate }) {
             Batch ingest incident registers, observation spreadsheets, and contractor safety logs for autonomous SIF classification
           </p>
         </div>
-
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
-          {/* Quick-Load Today's Register */}
-          <button
-            type="button"
-            onClick={handleQuickLoadTodaySample}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF5A36] border border-orange-200 text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95"
-            title="Load verified 20-record sample register dated today"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#FF5A36]" />
-            <span>Quick-Load Today's Register</span>
-          </button>
-        </div>
       </div>
 
       {/* Field Schema & Governance Banner */}
@@ -881,16 +813,8 @@ export default function BulkUploadView({ onNavigate }) {
             </div>
             <p className="font-bold text-slate-800 text-sm">No Batch Records Ingested In Active Session</p>
             <p className="text-xs max-w-md mx-auto text-slate-400">
-              Upload your organization's 6-field register above, or click <strong className="text-[#FF5A36]">"Quick-Load Today's Register"</strong> to analyze your records starting from today.
+              Upload your organization's 5-field safety register (CSV, Excel) above to ingest and classify operational records.
             </p>
-            <button
-              type="button"
-              onClick={handleQuickLoadTodaySample}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF5A36] text-xs font-bold border border-orange-200 cursor-pointer transition-all"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Quick-Load Today's Register</span>
-            </button>
           </div>
         ) : (
           <div className="space-y-4">

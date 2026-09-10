@@ -36,7 +36,9 @@ import {
   getStoreState, 
   subscribeSafetyStore, 
   getDashboardMetrics, 
-  getTodayDateString 
+  getTodayDateString,
+  clearAllSafetyData,
+  syncBackendReportsToStore
 } from '../../services/safetyStore';
 import {
   ResponsiveContainer,
@@ -58,11 +60,41 @@ import {
 export default function DashboardView({ onNavigate }) {
   const [storeState, setStoreState] = useState(getStoreState());
   const [storeMetrics, setStoreMetrics] = useState(getDashboardMetrics());
+  const [backendMetrics, setBackendMetrics] = useState(null);
 
   useEffect(() => {
+    // Load dynamic metrics directly from the authenticated backend database
+    api.getDashboardData()
+      .then(data => {
+        if (data) {
+          setBackendMetrics(data);
+          if (data.total_reports === 0) {
+            clearAllSafetyData();
+          }
+        }
+      })
+      .catch(() => {});
+
+    api.getReports()
+      .then(backendReports => {
+        if (Array.isArray(backendReports)) {
+          if (backendReports.length === 0) {
+            clearAllSafetyData();
+          } else {
+            syncBackendReportsToStore(backendReports, [], true);
+          }
+        }
+      })
+      .catch(() => {});
+
     const unsub = subscribeSafetyStore((newState) => {
       setStoreState(newState);
       setStoreMetrics(getDashboardMetrics());
+      api.getDashboardData()
+        .then(data => {
+          if (data) setBackendMetrics(data);
+        })
+        .catch(() => {});
     });
     return unsub;
   }, []);
@@ -73,131 +105,22 @@ export default function DashboardView({ onNavigate }) {
   const [donutHoverIndex, setDonutHoverIndex] = useState(null);
   const [selectedSite, setSelectedSite] = useState('ALL');
 
-  // ================= TOP 2 STRONG SIF REPORTS =================
-  const defaultStrongReports = [
-    {
-      id: 101,
-      report_reference: 'SR-CRIT-2026-01',
-      report_type: 'Near Miss',
-      title: 'Suspended 2-Ton Casing Flange Dropped on Drill Floor Walkway',
-      description: 'During crane hoisting at Rig 04 Derrick Floor, a 4-inch heavy steel drilling flange slipped from rigging sling at 18m height and fell 2m from roughnecks. No exclusion barricade established.',
-      location: 'Plant 03 • Drilling Rig 04',
-      facility_unit: 'Derrick Floor Area',
-      report_date: '2026-09-06',
-      sif_potential: 'FATALITY / PERMANENT DISABILITY POTENTIAL (98%)',
-      ai_confidence: 96.4,
-      risk_score: 94,
-      investigation_priority: 'P1 MANDATORY STOP-WORK',
-      energy_source: 'Gravitational Potential Energy (2,000 kg at 18m)',
-      barrier_status: 'DIRECT BARRIER TOTALLY ABSENT'
-    },
-    {
-      id: 102,
-      report_reference: 'SR-CRIT-2026-02',
-      report_type: 'Unsafe Act',
-      title: 'High Voltage 11kV Substation Switchgear Live Entry without LOTO',
-      description: 'Technician observed entering 11kV electrical switchgear room for inspection without Lock-Out/Tag-Out (LOTO) energy isolation or verifying zero-energy state with voltage detector.',
-      location: 'Plant 01 • Central Processing Facility',
-      facility_unit: 'Main Substation A',
-      report_date: '2026-09-06',
-      sif_potential: 'SEVERE ARC FLASH / FATAL ELECTROCUTION POTENTIAL (94%)',
-      ai_confidence: 94.8,
-      risk_score: 91,
-      investigation_priority: 'P1 IMMEDIATE AUDIT ENFORCEMENT',
-      energy_source: 'High-Voltage Electrical Energy (11,000 Volts)',
-      barrier_status: 'CRITICAL ISOLATION PROTOCOL BYPASSED'
-    }
-  ];
-
-  // ================= WEAK SIGNALS (UP TO 6 WITH SEARCH) =================
-  const defaultWeakSignals = [
-    {
-      signal_id: 'WS-01',
-      title: 'Repeated Unbarricaded Rigging & Suspended Load Exposures',
-      category: 'Lifting Operations & Rigging',
-      risk_level: 'High',
-      risk_score: 94,
-      energy_source: 'Gravitational Potential Energy (Crane Hoist)',
-      barrier_status: 'Exclusion Barricades Absent Around Drop Zone',
-      trend: 'Increasing',
-      first_detected: '2026-08-28'
-    },
-    {
-      signal_id: 'WS-02',
-      title: 'Compromised Electrical Isolation & Interlock Bypass Patterns',
-      category: 'Hazardous Energy & LOTO',
-      risk_level: 'High',
-      risk_score: 91,
-      energy_source: 'High-Voltage Residual Potential (11kV)',
-      barrier_status: 'LOTO Lockout Padlocks Missing',
-      trend: 'Increasing',
-      first_detected: '2026-08-30'
-    },
-    {
-      signal_id: 'WS-03',
-      title: 'Vessel Entry Without Multi-Gas Verification or Standby Presence',
-      category: 'Confined Space Entry',
-      risk_level: 'High',
-      risk_score: 88,
-      energy_source: 'Toxic Gas & Atmospheric Asphyxiation',
-      barrier_status: 'Continuous Gas Sniffers Uncalibrated',
-      trend: 'Stable',
-      first_detected: '2026-09-01'
-    },
-    {
-      signal_id: 'WS-04',
-      title: 'Scaffold & Roof Leading Edge Fall Protection Deficiencies',
-      category: 'Working at Height',
-      risk_level: 'Medium',
-      risk_score: 74,
-      energy_source: 'Gravitational Elevation Energy (Over 1.8m)',
-      barrier_status: 'Dual-Lanyard 100% Tie-Off Inconsistent',
-      trend: 'Decreasing',
-      first_detected: '2026-09-02'
-    },
-    {
-      signal_id: 'WS-05',
-      title: 'Pressurized Line Disconnection & Hydraulic Energy Release',
-      category: 'Pressure & Hazardous Fluids',
-      risk_level: 'Medium',
-      risk_score: 68,
-      energy_source: 'Stored Hydraulic Line Pressure (40 Bar)',
-      barrier_status: 'Bleed Valve Closed / Not Verified Zero',
-      trend: 'Stable',
-      first_detected: '2026-09-03'
-    },
-    {
-      signal_id: 'WS-06',
-      title: 'Ergonomics & Low-Velocity Particulate Exposure Inconsistencies',
-      category: 'Health & Protective Equipment',
-      risk_level: 'Low',
-      risk_score: 42,
-      energy_source: 'Airborne Particulates & Repetitive Strain',
-      barrier_status: 'Dust Filtration Facepiece Non-Compliance',
-      trend: 'Decreasing',
-      first_detected: '2026-09-04'
-    }
-  ];
-
+  // Dynamic weak signals loaded solely from the backend
   const [weakSignalSearch, setWeakSignalSearch] = useState('');
-  const [weakSignalsList, setWeakSignalsList] = useState(defaultWeakSignals);
+  const [weakSignalsList, setWeakSignalsList] = useState([]);
 
-  // Attempt to load live weak signals from backend
   useEffect(() => {
     let isMounted = true;
     api.getWeakSignals()
       .then((data) => {
-        if (isMounted && data?.weak_signals && data.weak_signals.length > 0) {
+        if (isMounted && data?.weak_signals) {
           setWeakSignalsList(data.weak_signals);
         }
       })
-      .catch(() => {
-        // Fallback already in place
-      });
+      .catch(() => {});
     return () => { isMounted = false; };
   }, []);
 
-  // Filter weak signals by search query, capped at 6
   const filteredWeakSignals = weakSignalsList
     .filter((sig) => {
       const q = weakSignalSearch.trim().toLowerCase();
@@ -211,6 +134,7 @@ export default function DashboardView({ onNavigate }) {
       );
     })
     .slice(0, 6);
+
 
   // Interactive Submit Report Card State
   const [quickCategory, setQuickCategory] = useState('Near Miss');
@@ -324,9 +248,20 @@ export default function DashboardView({ onNavigate }) {
     return 'General';
   };
 
+  // Unified active reports: strictly 0 if backend reports 0 or store reports are wiped
+  const activeReports = React.useMemo(() => {
+    if (backendMetrics && backendMetrics.total_reports === 0) {
+      return [];
+    }
+    if (storeState.isWiped) {
+      return [];
+    }
+    return storeState.reports || [];
+  }, [backendMetrics, storeState.isWiped, storeState.reports]);
+
   // 1. Hazard Categories Breakdown Data (Dynamically aggregated from uploaded records)
   const hazardCategoryData = React.useMemo(() => {
-    const reports = storeState.reports || [];
+    const reports = activeReports;
     if (reports.length === 0) return [];
     
     const catMap = {};
@@ -353,7 +288,7 @@ export default function DashboardView({ onNavigate }) {
     });
 
     return Object.values(catMap).sort((a, b) => b.total - a.total);
-  }, [storeState.reports]);
+  }, [activeReports]);
 
   // Max count for BarChart YAxis
   const maxHazardCount = React.useMemo(() => {
@@ -363,7 +298,7 @@ export default function DashboardView({ onNavigate }) {
 
   // 2. SIF vs Non-SIF vs Near Misses Donut Chart Data (Reflecting active safety reports)
   const classificationDistributionData = React.useMemo(() => {
-    const reports = storeState.reports || [];
+    const reports = activeReports;
     const total = reports.length || 1;
     const sifCount = reports.filter(r => r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80)).length;
     const nearMissCount = reports.filter(r => (r.report_type || '').toLowerCase().includes('near miss')).length;
@@ -392,11 +327,11 @@ export default function DashboardView({ onNavigate }) {
         description: 'Immediate near-miss incidents'
       }
     ];
-  }, [storeState.reports]);
+  }, [activeReports]);
 
   // 3. Safety Reports Table (Dynamically mapped from uploaded safety reports)
   const summaryReports = React.useMemo(() => {
-    const reports = storeState.reports || [];
+    const reports = activeReports;
     return reports.map((r, idx) => {
       const fullCat = categorizeHazard(r.identified_hazard || r.description);
       const isSIF = r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80);
@@ -414,7 +349,7 @@ export default function DashboardView({ onNavigate }) {
         description: r.description || ''
       };
     });
-  }, [storeState.reports]);
+  }, [activeReports]);
 
   // Dynamic filter computed based on active chart interaction
   const filteredReports = summaryReports.filter(rep => {
@@ -471,7 +406,7 @@ export default function DashboardView({ onNavigate }) {
 
   // 4. Day-Wise Incident & SIF Precursor Trajectory Across the 4 Sites (Dynamically sourced from uploaded records starting from today)
   const siteDayWiseData = React.useMemo(() => {
-    const reports = storeState.reports || [];
+    const reports = activeReports;
     const today = getTodayDateString();
 
     const formatDate = (isoStr) => {
@@ -495,103 +430,27 @@ export default function DashboardView({ onNavigate }) {
 
     const uniqueDates = [...new Set(reports.map(r => r.report_date || today))].sort();
 
-    if (uniqueDates.length >= 4) {
-      return uniqueDates.slice(-6).map(dStr => {
-        const dReports = reports.filter(r => (r.report_date || today) === dStr);
-        return {
-          day: formatDate(dStr),
-          plant01: getUnitCount(dReports, 1),
-          plant02: getUnitCount(dReports, 2),
-          plant03: getUnitCount(dReports, 3),
-          plant04: getUnitCount(dReports, 4),
-        };
-      });
-    }
+    if (reports.length === 0) return [];
 
-    const d3 = getTodayDateString(-3);
-    const d2 = getTodayDateString(-2);
-    const d1 = getTodayDateString(-1);
-    const d0 = today;
-
-    const u1 = getUnitCount(reports, 1);
-    const u2 = getUnitCount(reports, 2);
-    const u3 = getUnitCount(reports, 3);
-    const u4 = getUnitCount(reports, 4);
-
-    return [
-      { day: formatDate(d3), plant01: Math.max(0, Math.floor(u1 * 0.4)), plant02: Math.max(0, Math.floor(u2 * 0.2)), plant03: Math.max(0, Math.floor(u3 * 0.6)), plant04: Math.max(0, Math.floor(u4 * 0.2)) },
-      { day: formatDate(d2), plant01: Math.max(0, Math.floor(u1 * 0.6)), plant02: Math.max(0, Math.floor(u2 * 0.8)), plant03: Math.max(0, Math.floor(u3 * 0.4)), plant04: Math.max(0, Math.floor(u4 * 0.6)) },
-      { day: formatDate(d1), plant01: Math.max(0, Math.floor(u1 * 0.8)), plant02: Math.max(0, Math.floor(u2 * 0.6)), plant03: Math.max(0, Math.floor(u3 * 0.8)), plant04: Math.max(0, Math.floor(u4 * 0.4)) },
-      { day: `${formatDate(d0)} (Today)`, plant01: u1, plant02: u2, plant03: u3, plant04: u4 }
-    ];
-  }, [storeState.reports]);
+    return uniqueDates.slice(-7).map(dStr => {
+      const dReports = reports.filter(r => (r.report_date || today) === dStr);
+      return {
+        day: formatDate(dStr),
+        plant01: getUnitCount(dReports, 1),
+        plant02: getUnitCount(dReports, 2),
+        plant03: getUnitCount(dReports, 3),
+        plant04: getUnitCount(dReports, 4),
+      };
+    });
+  }, [activeReports]);
 
   // Max count for LineChart YAxis
   const maxTrajectoryCount = React.useMemo(() => {
-    if (!siteDayWiseData || siteDayWiseData.length === 0) return 6;
+    if (!siteDayWiseData || siteDayWiseData.length === 0) return 5;
     const maxVal = Math.max(5, ...siteDayWiseData.flatMap(d => [d.plant01 || 0, d.plant02 || 0, d.plant03 || 0, d.plant04 || 0]));
     return maxVal + 1;
   }, [siteDayWiseData]);
 
-  // Critical Weak Signals Data with rich early precursor telemetry
-  const criticalWeakSignalsData = [
-    {
-      id: 'SIG-01',
-      title: 'Separator Manifold B-12 Gasket Blow-by',
-      facility: 'Unit 2',
-      severity: 'CRITICAL PRECURSOR',
-      severityColor: 'rose',
-      riskScore: 94,
-      hazardType: 'Pressure Containment',
-      anomaly: 'Micro-acoustic weepage & 2.8-bar differential spike across primary seal under 450 PSI.',
-      barrierStatus: 'Primary Gasket Seal Breached',
-      preventativeAction: 'Mandate ultrasonic wall probe & emergency seal flange gasket swap before next shift.',
-      timestamp: 'Today, 02:40 PM',
-      signalCode: 'WS-PRS-881'
-    },
-    {
-      id: 'SIG-02',
-      title: 'Rig 04 Crane Synthetic Hoist Sling Fraying',
-      facility: 'Unit 3',
-      severity: 'CRITICAL PRECURSOR',
-      severityColor: 'rose',
-      riskScore: 96,
-      hazardType: 'Lifting & Rigging',
-      anomaly: '4-ton casing pipe lift rope strand slippage detected directly above crew drill floor.',
-      barrierStatus: 'Lifting Sling Strand Integrity Failed',
-      preventativeAction: 'Quarantine sling lot #R-884, mandate hard drop-zone exclusion & wire re-rigging.',
-      timestamp: 'Today, 11:15 AM',
-      signalCode: 'WS-LFT-402'
-    },
-    {
-      id: 'SIG-03',
-      title: '11kV Substation Switchgear LOTO Bypass',
-      facility: 'Unit 1',
-      severity: 'HIGH WEAK SIGNAL',
-      severityColor: 'amber',
-      riskScore: 91,
-      hazardType: 'Electrical Arc-Flash',
-      anomaly: 'Feeder breaker cubicle unlatched without secondary zero-energy verification ground hook.',
-      barrierStatus: 'Procedural LOTO Compromised',
-      preventativeAction: 'Enforce dual-custody physical padlock protocol and audit permit-to-work signoffs.',
-      timestamp: 'Yesterday, 04:30 PM',
-      signalCode: 'WS-ELE-109'
-    },
-    {
-      id: 'SIG-04',
-      title: 'Centrifugal Gas Compressor Bearing Harmonics',
-      facility: 'Unit 2',
-      severity: 'ELEVATING ANOMALY',
-      severityColor: 'cyan',
-      riskScore: 82,
-      hazardType: 'Vibration & Mechanical',
-      anomaly: '14% harmonic radial vibration surge on drive-end bearing over 72-hour operational baseline.',
-      barrierStatus: 'Mechanical Vibration Tolerance Degrading',
-      preventativeAction: 'Inspect lube oil contamination, schedule ultrasonic spectral vibration analysis.',
-      timestamp: 'Yesterday, 09:12 AM',
-      signalCode: 'WS-VIB-315'
-    }
-  ];
 
   // Custom Dark Tooltip for Multi-Line Spline Trajectory Chart (4 Units)
   const CustomTrajectoryTooltip = ({ active, payload, label }) => {
@@ -682,6 +541,69 @@ export default function DashboardView({ onNavigate }) {
         </div>
       </section>
 
+      {/* ================= 1.5 KEY OPERATIONAL METRICS (4 KPIS) ================= */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Safety Reports */}
+        <div className="rounded-2xl bg-white border border-[#EAE6E1] p-5 shadow-xs flex items-center justify-between hover:border-slate-300 transition-all">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Safety Reports</p>
+            <h3 className="text-2xl sm:text-3xl font-black font-heading text-slate-900 mt-1">
+              {backendMetrics != null ? backendMetrics.total_reports : activeReports.length}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Database operational records</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
+            <FileText className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Analyzed Reports */}
+        <div className="rounded-2xl bg-white border border-[#EAE6E1] p-5 shadow-xs flex items-center justify-between hover:border-slate-300 transition-all">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Analyzed Reports</p>
+            <h3 className="text-2xl sm:text-3xl font-black font-heading text-slate-900 mt-1">
+              {backendMetrics != null ? backendMetrics.completed_analysis : activeReports.length}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">AI/NLP pipeline completed</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shadow-2xs">
+            <Cpu className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Potential SIF Findings */}
+        <div className="rounded-2xl bg-white border border-[#EAE6E1] p-5 shadow-xs flex items-center justify-between hover:border-slate-300 transition-all">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Potential SIF Findings</p>
+            <h3 className="text-2xl sm:text-3xl font-black font-heading text-[#FF5A36] mt-1">
+              {backendMetrics != null 
+                ? backendMetrics.potential_sif_findings 
+                : activeReports.filter(r => r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical').length}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">High-energy / fatal risk</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF5A36] shadow-2xs">
+            <AlertOctagon className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Awaiting Human Review */}
+        <div className="rounded-2xl bg-white border border-[#EAE6E1] p-5 shadow-xs flex items-center justify-between hover:border-slate-300 transition-all">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Awaiting Human Review</p>
+            <h3 className="text-2xl sm:text-3xl font-black font-heading text-amber-600 mt-1">
+              {backendMetrics != null 
+                ? backendMetrics.awaiting_review 
+                : activeReports.filter(r => r.status === 'Under Review').length}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-1">Requires safety verification</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-2xs">
+            <Clock className="w-5 h-5" />
+          </div>
+        </div>
+      </section>
+
       {/* ================= 2. MAIN ANALYTICS ROW (HAZARD CATEGORIES & SIF DONUT) ================= */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         
@@ -714,73 +636,92 @@ export default function DashboardView({ onNavigate }) {
             </div>
           </div>
 
-          <div className="w-full h-72 sm:h-80 lg:h-[310px] pt-2 cursor-pointer flex-1 flex items-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={hazardCategoryData} 
-                margin={{ top: 16, right: 16, left: -20, bottom: 4 }}
-                barCategoryGap="16%"
-                onClick={(state) => {
-                  if (state && state.activePayload && state.activePayload[0]) {
-                    handleBarClick(state.activePayload[0].payload);
-                  }
-                }}
+          {hazardCategoryData.length === 0 ? (
+            <div className="w-full h-72 sm:h-80 lg:h-[310px] flex flex-col items-center justify-center text-center p-6 bg-stone-50/50 rounded-xl border border-dashed border-stone-200 my-auto">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF5A36] mb-3">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No safety reports available yet</p>
+              <p className="text-xs text-slate-500 max-w-sm mt-1 mb-4">
+                Submit a safety observation or upload your site register to visualize real-time hazard category distributions.
+              </p>
+              <button
+                onClick={() => handleNav('/bulk-upload')}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FF5A36] hover:bg-[#e54a26] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis 
-                  dataKey="shortName" 
-                  stroke="#94A3B8" 
-                  fontSize={11} 
-                  tickLine={false} 
-                  axisLine={{ stroke: '#E2E8F0' }} 
-                  dy={4}
-                />
-                <YAxis 
-                  stroke="#94A3B8" 
-                  fontSize={11} 
-                  tickLine={false} 
-                  axisLine={{ stroke: '#E2E8F0' }} 
-                  domain={[0, maxHazardCount]} 
-                  allowDecimals={false}
-                />
-                <Tooltip content={<CustomHazardTooltip />} />
-                <Bar 
-                  dataKey="sifHigh" 
-                  name="SIF Precursor (High)" 
-                  stackId="hazards" 
-                  radius={[0, 0, 4, 4]} 
-                  barSize={46}
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Upload Report Register</span>
+              </button>
+            </div>
+          ) : (
+            <div className="w-full h-72 sm:h-80 lg:h-[310px] pt-2 cursor-pointer flex-1 flex items-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={hazardCategoryData} 
+                  margin={{ top: 16, right: 16, left: -20, bottom: 4 }}
+                  barCategoryGap="16%"
+                  onClick={(state) => {
+                    if (state && state.activePayload && state.activePayload[0]) {
+                      handleBarClick(state.activePayload[0].payload);
+                    }
+                  }}
                 >
-                  {hazardCategoryData.map((entry) => (
-                    <Cell 
-                      key={`sif-${entry.shortName}`} 
-                      fill="#FF5A36" 
-                      opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
-                      stroke={activeHazard === entry.shortName ? '#FF5A36' : 'none'}
-                      strokeWidth={activeHazard === entry.shortName ? 2 : 0}
-                    />
-                  ))}
-                </Bar>
-                <Bar 
-                  dataKey="nonSif" 
-                  name="Non-SIF / Weak Signal" 
-                  stackId="hazards" 
-                  radius={[4, 4, 0, 0]} 
-                  barSize={46}
-                >
-                  {hazardCategoryData.map((entry) => (
-                    <Cell 
-                      key={`nonsif-${entry.shortName}`} 
-                      fill="#10B981" 
-                      opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
-                      stroke={activeHazard === entry.shortName ? '#10B981' : 'none'}
-                      strokeWidth={activeHazard === entry.shortName ? 2 : 0}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis 
+                    dataKey="shortName" 
+                    stroke="#94A3B8" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: '#E2E8F0' }} 
+                    dy={4}
+                  />
+                  <YAxis 
+                    stroke="#94A3B8" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: '#E2E8F0' }} 
+                    domain={[0, maxHazardCount]} 
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<CustomHazardTooltip />} />
+                  <Bar 
+                    dataKey="sifHigh" 
+                    name="SIF Precursor (High)" 
+                    stackId="hazards" 
+                    radius={[0, 0, 4, 4]} 
+                    barSize={46}
+                  >
+                    {hazardCategoryData.map((entry) => (
+                      <Cell 
+                        key={`sif-${entry.shortName}`} 
+                        fill="#FF5A36" 
+                        opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
+                        stroke={activeHazard === entry.shortName ? '#FF5A36' : 'none'}
+                        strokeWidth={activeHazard === entry.shortName ? 2 : 0}
+                      />
+                    ))}
+                  </Bar>
+                  <Bar 
+                    dataKey="nonSif" 
+                    name="Non-SIF / Weak Signal" 
+                    stackId="hazards" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={46}
+                  >
+                    {hazardCategoryData.map((entry) => (
+                      <Cell 
+                        key={`nonsif-${entry.shortName}`} 
+                        fill="#10B981" 
+                        opacity={activeHazard && activeHazard !== entry.shortName ? 0.35 : 1}
+                        stroke={activeHazard === entry.shortName ? '#10B981' : 'none'}
+                        strokeWidth={activeHazard === entry.shortName ? 2 : 0}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* Bottom Chart Legend */}
           <div className="flex items-center justify-between pt-2.5 border-t border-stone-100 text-[11px]">
@@ -831,113 +772,125 @@ export default function DashboardView({ onNavigate }) {
             </div>
           </div>
 
-          {/* Centered Large Interactive Donut Chart */}
-          <div className="flex flex-col items-center justify-center my-auto py-2 gap-3 w-full flex-1">
-            <div className="relative w-64 h-64 sm:w-72 sm:h-72 lg:w-[310px] lg:h-[310px] shrink-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={classificationDistributionData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={76}
-                    outerRadius={122}
-                    paddingAngle={4}
-                    dataKey="value"
-                    onClick={(entry) => handleClassificationClick(entry.name)}
-                    onMouseEnter={(_, index) => setDonutHoverIndex(index)}
-                    onMouseLeave={() => setDonutHoverIndex(null)}
-                    className="cursor-pointer outline-none"
-                  >
-                    {classificationDistributionData.map((entry, index) => {
-                      const isHovered = donutHoverIndex === index;
-                      const isSelected = activeClassification === entry.name;
-                      const isFaded = (activeClassification && !isSelected) || (donutHoverIndex !== null && !isHovered && !isSelected);
-                      return (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.color} 
-                          stroke="#FFFFFF" 
-                          strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
-                          opacity={isFaded ? 0.35 : 1}
-                          style={{
-                            filter: isSelected || isHovered ? `drop-shadow(0 4px 12px ${entry.color}40)` : 'none',
-                            transition: 'all 0.2s ease',
-                            cursor: 'pointer'
-                          }}
-                        />
-                      );
-                    })}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-
-              {/* Dynamic Interactive Center Readout */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all duration-200 select-none">
-                {donutHoverIndex !== null ? (
-                  <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
-                    <span className="text-4xl sm:text-5xl font-black font-heading text-slate-900 tracking-tight block">
-                      {classificationDistributionData[donutHoverIndex].count}
-                    </span>
-                    <span 
-                      className="text-xs font-bold uppercase tracking-wider block max-w-[130px] mx-auto truncate mt-1"
-                      style={{ color: classificationDistributionData[donutHoverIndex].color }}
+          {summaryReports.length === 0 ? (
+            <div className="flex flex-col items-center justify-center my-auto py-12 px-6 text-center w-full flex-1 bg-stone-50/50 rounded-xl border border-dashed border-stone-200">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF5A36] mb-3">
+                <PieChartIcon className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No safety reports available yet</p>
+              <p className="text-xs text-slate-500 max-w-xs mt-1">
+                SIF vs Non-SIF breakdown will dynamically update once operational reports are processed.
+              </p>
+            </div>
+          ) : (
+            /* Centered Large Interactive Donut Chart */
+            <div className="flex flex-col items-center justify-center my-auto py-2 gap-3 w-full flex-1">
+              <div className="relative w-64 h-64 sm:w-72 sm:h-72 lg:w-[310px] lg:h-[310px] shrink-0 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={classificationDistributionData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={76}
+                      outerRadius={122}
+                      paddingAngle={4}
+                      dataKey="value"
+                      onClick={(entry) => handleClassificationClick(entry.name)}
+                      onMouseEnter={(_, index) => setDonutHoverIndex(index)}
+                      onMouseLeave={() => setDonutHoverIndex(null)}
+                      className="cursor-pointer outline-none"
                     >
-                      {classificationDistributionData[donutHoverIndex].name}
-                    </span>
-                    <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
-                      {classificationDistributionData[donutHoverIndex].value}% of total
-                    </span>
-                  </div>
-                ) : activeClassification ? (
-                  <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
-                    <span className="text-4xl sm:text-5xl font-black font-heading text-[#FF5A36] tracking-tight block">
-                      {classificationDistributionData.find(c => c.name === activeClassification)?.count || 0}
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#FF5A36] block max-w-[130px] mx-auto truncate mt-1">
-                      {activeClassification}
-                    </span>
-                    <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
-                      {classificationDistributionData.find(c => c.name === activeClassification)?.value || 0}%
-                    </span>
-                  </div>
-                ) : (
-                  <div className="text-center px-3">
-                    <span className="text-4xl sm:text-5xl font-black text-slate-900 font-heading tracking-tight block">{summaryReports.length}</span>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mt-1">Reports</span>
-                    <span className="text-[10.5px] font-mono text-[#FF5A36] font-semibold block mt-0.5">Analyzed</span>
-                  </div>
-                )}
+                      {classificationDistributionData.map((entry, index) => {
+                        const isHovered = donutHoverIndex === index;
+                        const isSelected = activeClassification === entry.name;
+                        const isFaded = (activeClassification && !isSelected) || (donutHoverIndex !== null && !isHovered && !isSelected);
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.color} 
+                            stroke="#FFFFFF" 
+                            strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
+                            opacity={isFaded ? 0.35 : 1}
+                            style={{
+                              filter: isSelected || isHovered ? `drop-shadow(0 4px 12px ${entry.color}40)` : 'none',
+                              transition: 'all 0.2s ease',
+                              cursor: 'pointer'
+                            }}
+                          />
+                        );
+                      })}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+
+                {/* Dynamic Interactive Center Readout */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all duration-200 select-none">
+                  {donutHoverIndex !== null ? (
+                    <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
+                      <span className="text-4xl sm:text-5xl font-black font-heading text-slate-900 tracking-tight block">
+                        {classificationDistributionData[donutHoverIndex].count}
+                      </span>
+                      <span 
+                        className="text-xs font-bold uppercase tracking-wider block max-w-[130px] mx-auto truncate mt-1"
+                        style={{ color: classificationDistributionData[donutHoverIndex].color }}
+                      >
+                        {classificationDistributionData[donutHoverIndex].name}
+                      </span>
+                      <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
+                        {classificationDistributionData[donutHoverIndex].value}% of total
+                      </span>
+                    </div>
+                  ) : activeClassification ? (
+                    <div className="text-center px-3 animate-in fade-in zoom-in-95 duration-150">
+                      <span className="text-4xl sm:text-5xl font-black font-heading text-[#FF5A36] tracking-tight block">
+                        {classificationDistributionData.find(c => c.name === activeClassification)?.count || 0}
+                      </span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#FF5A36] block max-w-[130px] mx-auto truncate mt-1">
+                        {activeClassification}
+                      </span>
+                      <span className="text-xs font-mono text-slate-500 font-semibold block mt-0.5">
+                        {classificationDistributionData.find(c => c.name === activeClassification)?.value || 0}%
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-center px-3">
+                      <span className="text-4xl sm:text-5xl font-black text-slate-900 font-heading tracking-tight block">{summaryReports.length}</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block mt-1">Reports</span>
+                      <span className="text-[10.5px] font-mono text-[#FF5A36] font-semibold block mt-0.5">Analyzed</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Interactive Centered Pills with richer spacing and stats */}
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2 w-full">
+                {classificationDistributionData.map((item, index) => {
+                  const isSelected = activeClassification === item.name;
+                  const isHovered = donutHoverIndex === index;
+                  return (
+                    <button 
+                      key={item.name} 
+                      onClick={() => handleClassificationClick(item.name)}
+                      onMouseEnter={() => setDonutHoverIndex(index)}
+                      onMouseLeave={() => setDonutHoverIndex(null)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                        isSelected 
+                          ? 'bg-orange-50 border-orange-200 text-[#FF5A36] font-bold shadow-xs scale-105' 
+                          : isHovered
+                            ? 'bg-stone-100 border-stone-300 text-slate-900 scale-102 shadow-2xs'
+                            : 'bg-[#FBF9F6] border-[#EAE6E1] text-slate-700 hover:bg-stone-100 hover:border-stone-300'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs font-semibold">{item.name}</span>
+                      <span className="font-mono text-xs text-slate-500 font-bold">({item.count})</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-
-            {/* Interactive Centered Pills with richer spacing and stats */}
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2 w-full">
-              {classificationDistributionData.map((item, index) => {
-                const isSelected = activeClassification === item.name;
-                const isHovered = donutHoverIndex === index;
-                return (
-                  <button 
-                    key={item.name} 
-                    onClick={() => handleClassificationClick(item.name)}
-                    onMouseEnter={() => setDonutHoverIndex(index)}
-                    onMouseLeave={() => setDonutHoverIndex(null)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border ${
-                      isSelected 
-                        ? 'bg-orange-50 border-orange-200 text-[#FF5A36] font-bold shadow-xs scale-105' 
-                        : isHovered
-                          ? 'bg-stone-100 border-stone-300 text-slate-900 scale-102 shadow-2xs'
-                          : 'bg-[#FBF9F6] border-[#EAE6E1] text-slate-700 hover:bg-stone-100 hover:border-stone-300'
-                    }`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: item.color }} />
-                    <span className="text-xs font-semibold">{item.name}</span>
-                    <span className="font-mono text-xs text-slate-500 font-bold">({item.count})</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
         </div>
 
@@ -983,66 +936,78 @@ export default function DashboardView({ onNavigate }) {
             </div>
           </div>
 
-          {/* Spline Curve Multi-Line Chart (Full Width 4 Units Trajectory) */}
-          <div className="w-full h-72 sm:h-80 pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
-                data={siteDayWiseData}
-                margin={{ top: 15, right: 25, left: -10, bottom: 5 }}
-              >
-                <CartesianGrid stroke="#F1F5F9" strokeDasharray="0" vertical={true} horizontal={true} />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#94A3B8" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={{ stroke: '#E2E8F0' }}
-                  dy={8}
-                />
-                <YAxis 
-                  stroke="#94A3B8" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={{ stroke: '#E2E8F0' }}
-                  domain={[0, maxTrajectoryCount]}
-                  allowDecimals={false}
-                />
-                <Tooltip content={<CustomTrajectoryTooltip />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="plant01" 
-                  name="Unit 1" 
-                  stroke="#10B981" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#10B981', stroke: '#ffffff', strokeWidth: 2 }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="plant02" 
-                  name="Unit 2" 
-                  stroke="#FF5A36" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#FF5A36', stroke: '#ffffff', strokeWidth: 2 }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="plant03" 
-                  name="Unit 3" 
-                  stroke="#3B82F6" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#3B82F6', stroke: '#ffffff', strokeWidth: 2 }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="plant04" 
-                  name="Unit 4" 
-                  stroke="#64748B" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#64748B', stroke: '#ffffff', strokeWidth: 2 }} 
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Spline Curve Multi-Line Chart or Empty State */}
+          {siteDayWiseData.length === 0 ? (
+            <div className="w-full h-72 sm:h-80 flex flex-col items-center justify-center text-center p-6 bg-stone-50/50 rounded-xl border border-dashed border-stone-200">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-[#FF5A36] mb-3">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No safety reports available yet</p>
+              <p className="text-xs text-slate-500 max-w-md mt-1">
+                Multi-unit velocity curves and daily precursor trajectories will render as incident and near-miss logs are captured.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full h-72 sm:h-80 pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart 
+                  data={siteDayWiseData}
+                  margin={{ top: 15, right: 25, left: -10, bottom: 5 }}
+                >
+                  <CartesianGrid stroke="#F1F5F9" strokeDasharray="0" vertical={true} horizontal={true} />
+                  <XAxis 
+                    dataKey="day" 
+                    stroke="#94A3B8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={{ stroke: '#E2E8F0' }}
+                    dy={8}
+                  />
+                  <YAxis 
+                    stroke="#94A3B8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={{ stroke: '#E2E8F0' }}
+                    domain={[0, maxTrajectoryCount]}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<CustomTrajectoryTooltip />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="plant01" 
+                    name="Unit 1" 
+                    stroke="#10B981" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#10B981', stroke: '#ffffff', strokeWidth: 2 }} 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="plant02" 
+                    name="Unit 2" 
+                    stroke="#FF5A36" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#FF5A36', stroke: '#ffffff', strokeWidth: 2 }} 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="plant03" 
+                    name="Unit 3" 
+                    stroke="#3B82F6" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#3B82F6', stroke: '#ffffff', strokeWidth: 2 }} 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="plant04" 
+                    name="Unit 4" 
+                    stroke="#64748B" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#64748B', stroke: '#ffffff', strokeWidth: 2 }} 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </section>
 

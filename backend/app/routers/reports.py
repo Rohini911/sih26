@@ -1,6 +1,8 @@
 import re
+import csv
+import io
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
@@ -182,8 +184,9 @@ def batch_upload_reports(
             if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
                 norm_type = "UNSAFE_CONDITION"
 
+            item_date = item.report_date.strip() if item.report_date and item.report_date.strip() else datetime.utcnow().strftime("%Y-%m-%d")
             batch_key = (
-                item.report_date.strip(),
+                item_date,
                 " ".join(item.location.strip().lower().split()),
                 norm_type,
                 " ".join(item.description.strip().lower().split())
@@ -275,11 +278,59 @@ def batch_upload_reports(
     }
 
 @router.post("/bulk-upload")
-def bulk_upload_reports_alias(
-    payload: List[SafetyReportCreate],
+async def bulk_upload_reports_alias(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Compatibility alias routing to batch_upload_reports."""
-    return batch_upload_reports(payload, current_user, db)
+    """
+    Unified Bulk Ingestion Endpoint.
+    Accepts both JSON array payload and multipart/form-data CSV file uploads.
+    Sequentially ingests records, executes AI analysis, and detects weak signals.
+    """
+    content_type = request.headers.get("content-type", "")
+    reports_list = []
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = None
+        for field in form.values():
+            if hasattr(field, "filename") and field.filename:
+                uploaded_file = field
+                break
+        
+        if not uploaded_file:
+            raise HTTPException(status_code=400, detail="No file found in multipart upload.")
+        
+        contents = await uploaded_file.read()
+        text_data = contents.decode("utf-8", errors="replace")
+        csv_reader = csv.DictReader(io.StringIO(text_data))
+        
+        for row in csv_reader:
+            # Map common column headers flexibly
+            desc = row.get("description") or row.get("Description") or row.get("incident_description") or ""
+            loc = row.get("location") or row.get("Site") or row.get("site") or "General Facility"
+            rtype = row.get("report_type") or row.get("Report Type") or row.get("type") or "UNSAFE_CONDITION"
+            rdate = row.get("incident_date") or row.get("report_date") or row.get("Date") or ""
+            
+            if desc.strip():
+                reports_list.append(SafetyReportCreate(
+                    description=desc.strip(),
+                    location=loc.strip(),
+                    report_type=rtype.strip(),
+                    report_date=rdate.strip() if rdate.strip() else None
+                ))
+    else:
+        body = await request.json()
+        if isinstance(body, list):
+            for item in body:
+                reports_list.append(SafetyReportCreate(**item))
+        elif isinstance(body, dict) and "reports" in body:
+            for item in body["reports"]:
+                reports_list.append(SafetyReportCreate(**item))
+        else:
+            raise HTTPException(status_code=400, detail="Expected a JSON array of reports.")
+
+    return batch_upload_reports(reports_list, current_user, db)
+
 
