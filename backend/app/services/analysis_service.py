@@ -1,3 +1,4 @@
+import re
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -19,7 +20,24 @@ def execute_ai_analysis(db: Session, report: SafetyReport) -> AIAnalysis:
 
     try:
         # Run 10-step AI pipeline on normalized description (falling back to original)
-        desc_to_analyze = report.normalized_description or report.description
+        desc_to_analyze = report.normalized_description or report.description or ""
+        checklist_items: List[str] = []
+        if report.additional_context:
+            ctx_val = report.additional_context if isinstance(report.additional_context, str) else ", ".join(str(x) for x in report.additional_context)
+            factors_text = ctx_val.replace("Safety Factors:", "").strip()
+            checklist_items = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
+
+        if (not desc_to_analyze or desc_to_analyze == "No free-text observation provided.") and checklist_items:
+            structured_factors = "\n".join(f"- {item}" for item in checklist_items)
+            desc_to_analyze = (
+                "Safety Observation:\n"
+                "No free-text observation provided.\n\n"
+                "Selected Safety Factors:\n"
+                f"{structured_factors}\n\n"
+                f"Classification:\n{report.report_type.replace('_', ' ').title()}\n\n"
+                f"Operating Unit:\n{report.location}"
+            )
+
         raw_result = analyze_safety_report(
             report_type=report.report_type,
             description=desc_to_analyze,
@@ -86,17 +104,41 @@ def execute_direct_analysis(
     persists the SafetyReport and its AIAnalysis in SQLite if new,
     and returns the rich structured response.
     """
-    description = request.report_text.strip()
+    description = (request.report_text or "").strip()
     location = (request.location or "Unit 1").strip()
     norm_type = (request.report_type or "NEAR_MISS").strip().upper().replace("-", "_").replace(" ", "_")
     if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
         norm_type = "NEAR_MISS"
     report_date = (request.report_date or datetime.utcnow().strftime("%Y-%m-%d")).strip()
 
+    # Explicitly extract and initialize selected checklist safety factors at the top
+    checklist_items: List[str] = []
+    if request.additional_context:
+        ctx_val = request.additional_context if isinstance(request.additional_context, str) else ", ".join(str(x) for x in request.additional_context)
+        factors_text = ctx_val.replace("Safety Factors:", "").strip()
+        checklist_items = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
+
+    # Format analysis input based on whether description and/or checklist factors exist
+    if not description and checklist_items:
+        structured_factors = "\n".join(f"- {item}" for item in checklist_items)
+        structured_context = (
+            "Safety Observation:\n"
+            "No free-text observation provided.\n\n"
+            "Selected Safety Factors:\n"
+            f"{structured_factors}\n\n"
+            f"Classification:\n{norm_type.replace('_', ' ').title()}\n\n"
+            f"Operating Unit:\n{location}"
+        )
+        desc_to_analyze = structured_context
+        description_for_report = "No free-text observation provided."
+    else:
+        desc_to_analyze = description
+        description_for_report = description
+
     # 1. Run the real current main 10-step AI NLP engine
     raw_result = analyze_safety_report(
         report_type=norm_type,
-        description=description,
+        description=desc_to_analyze,
         additional_context=request.additional_context
     )
 
@@ -127,13 +169,26 @@ def execute_direct_analysis(
 
     # 4. Extract hazards & energy vectors
     hazards: List[str] = []
-    if raw_result.get("identified_hazard"):
+    all_hazards_detected = raw_result.get("all_detected_hazards", [])
+    if all_hazards_detected:
+        for hz in all_hazards_detected:
+            if hz not in hazards:
+                hazards.append(hz)
+    elif raw_result.get("identified_hazard"):
         hazards.append(raw_result["identified_hazard"])
-    if raw_result.get("exposure") and raw_result.get("exposure") != "Insufficient Information":
-        hazards.append(f"Exposure Vector: {raw_result['exposure']}")
-    if raw_result.get("safety_signals"):
-        for sig in raw_result["safety_signals"]:
-            hazards.append(f"Detected Safety Signal: {sig}")
+
+    # Include explicit checklist factors not already represented in detected hazards
+    for item in checklist_items:
+        item_clean = item.strip()
+        item_words = set(re.findall(r'\w+', item_clean.lower())) - {"not", "followed", "hazard", "issue"}
+        already_covered = any(
+            item_clean.lower() in h.lower() or 
+            (len(item_words) > 0 and any(w in h.lower() for w in item_words))
+            for h in hazards
+        )
+        if not already_covered:
+            hazards.append(f"Safety Factor: {item_clean}")
+
     if not hazards:
         if is_sif:
             hazards.append("High Potential Energy Vector")
@@ -143,9 +198,15 @@ def execute_direct_analysis(
             hazards.append("General Operational Observation")
 
     high_energy_vectors: List[str] = []
-    energy_source_raw = raw_result.get("energy_source")
-    if energy_source_raw and energy_source_raw not in ["Not identified / Insufficient Information", "None Identified"]:
-        high_energy_vectors.append(energy_source_raw)
+    all_energy_srcs = raw_result.get("all_energy_sources", [])
+    if all_energy_srcs:
+        for esrc in all_energy_srcs:
+            if esrc not in high_energy_vectors:
+                high_energy_vectors.append(esrc)
+    else:
+        energy_source_raw = raw_result.get("energy_source")
+        if energy_source_raw and energy_source_raw not in ["Not identified / Insufficient Information", "None Identified", "UNKNOWN"]:
+            high_energy_vectors.append(energy_source_raw)
 
     # 5. Barrier status description
     barrier_eval = raw_result.get("barrier_information")
@@ -162,21 +223,57 @@ def execute_direct_analysis(
     else:
         barrier_status_desc = "Insufficient Information"
 
-    # 6. Actionable recommendations & CAPA
+    # 6. Actionable recommendations & CAPA (Prioritized by SIF Precursor Severity)
     h_lower = (raw_result.get("identified_hazard") or "").lower()
-    t_lower = description.lower()
-    if "slip" in h_lower or "slip" in t_lower or "slippery" in t_lower:
+    t_lower = desc_to_analyze.lower()
+    c_lower = " ".join(checklist_items).lower()
+    comb_lower = f"{t_lower} {h_lower} {c_lower}"
+
+    if "loto" in comb_lower or "lockout" in comb_lower or "isolation" in comb_lower:
         recommended_controls = [
-            "Inspect and rectify the slippery surface, identify the source of moisture/oil.",
-            "Provide warning signage and prevent pedestrian exposure until corrected.",
-            "Clean and dry the affected area immediately with compatible absorbent.",
-            "Verify the area during routine post-shift safety inspection."
+            "Immediately stop work and perform positive Lockout/Tagout (LOTO) energy isolation.",
+            "Verify zero-energy state with calibrated instruments before entering work zone.",
+            "Apply individual safety padlocks and danger tags to all energy isolation points.",
+            "Review Isolation Certificate and verify try-step with authorized supervisor."
         ]
         corrective_actions = [
-            "Rectify drainage defect or fluid source causing surface slickness.",
-            "Log routine maintenance inspection in CMMS ledger."
+            "Conduct safety stand-down on Life-Saving Rule: Energy Isolation (LSR-01).",
+            "Audit facility energy isolation and LOTO verification field procedures."
         ]
-    elif "water" in t_lower and ("electrical" in t_lower or "panel" in t_lower):
+    elif "confined" in comb_lower or "tank entry" in comb_lower or "vessel entry" in comb_lower:
+        recommended_controls = [
+            "Stop entry immediately; conduct atmospheric gas testing (0% LEL, 19.5-23.5% O2, 0 ppm toxic).",
+            "Verify valid Confined Space Entry Permit and assign dedicated standby sentry.",
+            "Maintain continuous forced ventilation and calibrated multi-gas monitor.",
+            "Confirm emergency rescue plan and retrieval tripod/harness are positioned at entrance."
+        ]
+        corrective_actions = [
+            "Audit confined space atmospheric testing protocols and authorization permits.",
+            "Conduct mandatory retraining on Confined Space Entry procedures."
+        ]
+    elif "high pressure" in comb_lower or "high-pressure" in comb_lower or "pressurized" in comb_lower:
+        recommended_controls = [
+            "Isolate upstream pressure supply and depressurize system to 0 PSI before inspection.",
+            "Barricade pressure exclusion zone and position personnel outside the line of fire.",
+            "Inspect high-pressure whip-checks, hammer unions, and manifold connections.",
+            "Verify pressure bleed-off valves are locked open and tagged."
+        ]
+        corrective_actions = [
+            "Conduct pressure systems integrity audit and inspect line securement devices.",
+            "Brief operations personnel on high-pressure line-of-fire hazard controls."
+        ]
+    elif "dropped" in comb_lower or "line of fire" in comb_lower or "suspended load" in comb_lower or "struck" in comb_lower:
+        recommended_controls = [
+            "Barricade drop zone and prohibit personnel from walking under dynamic trajectories.",
+            "Inspect tool tethering, secondary retention nets, and overhead securement.",
+            "Ensure clear communication and spotter assignment during overhead/moving tasks.",
+            "Verify personnel maintain safe clearance outside the line of fire."
+        ]
+        corrective_actions = [
+            "Audit drop-prevention controls and tool lanyards across working areas.",
+            "Conduct safety stand-down on line-of-fire hazard recognition."
+        ]
+    elif "water" in comb_lower and ("electrical" in comb_lower or "panel" in comb_lower):
         recommended_controls = [
             "De-energize electrical panel immediately and establish barrier cordon.",
             "Identify and isolate the source of water leakage.",
@@ -187,7 +284,29 @@ def execute_direct_analysis(
             "Permanent pipe/roof repair to eliminate water path above electrical gear.",
             "Recertify electrical insulation integrity before re-energizing."
         ]
-    elif "exit" in t_lower or "egress" in h_lower or "blocked" in t_lower:
+    elif "gas" in comb_lower or "hydrocarbon" in comb_lower or "leak" in comb_lower:
+        recommended_controls = [
+            "Isolate upstream supply valve and depressurize affected line segment.",
+            "Evacuate area and perform continuous atmospheric gas testing (0% LEL).",
+            "Inspect flange gasket, valve seals, and fittings for degradation.",
+            "Establish safety exclusion perimeter until re-pressurization tests pass."
+        ]
+        corrective_actions = [
+            "Replace degraded flange gasket/valve seal and verify with leak detection.",
+            "Log containment inspection in process safety integrity tracking register."
+        ]
+    elif "slip" in comb_lower or "slippery" in comb_lower:
+        recommended_controls = [
+            "Inspect and rectify the slippery surface, identify the source of moisture/oil.",
+            "Provide warning signage and prevent pedestrian exposure until corrected.",
+            "Clean and dry the affected area immediately with compatible absorbent.",
+            "Verify the area during routine post-shift safety inspection."
+        ]
+        corrective_actions = [
+            "Rectify drainage defect or fluid source causing surface slickness.",
+            "Log routine maintenance inspection in CMMS ledger."
+        ]
+    elif "exit" in comb_lower or "egress" in comb_lower or "blocked" in comb_lower:
         recommended_controls = [
             "Immediately clear designated emergency exit and evacuation route.",
             "Remove all stored obstructions, boxes, and materials from doorway.",
@@ -198,18 +317,7 @@ def execute_direct_analysis(
             "Mark floor with yellow hatching 'Keep Clear At All Times'.",
             "Audit facility egress compliance during weekly safety committee walk."
         ]
-    elif "helmet" in t_lower or "head" in h_lower or ("ppe" in h_lower and "without" in t_lower):
-        recommended_controls = [
-            "Provide required safety helmet immediately before worker continues task.",
-            "Brief frontline team on mandatory 100% PPE compliance in operational areas.",
-            "Verify all personnel on shift are equipped with inspected PPE.",
-            "Document observation in shift safety briefing log."
-        ]
-        corrective_actions = [
-            "Conduct shift safety stand-down on Life-Saving Rule personal accountability.",
-            "Ensure contractor supervisor enforces pre-task PPE checks."
-        ]
-    elif "tools" in t_lower or "housekeeping" in h_lower or "stacked" in t_lower:
+    elif "tools" in comb_lower or "housekeeping" in comb_lower or "stacked" in comb_lower:
         recommended_controls = [
             "Clear unattended tools and materials from walkway immediately.",
             "Restack materials and boxes within designated weight and height limits.",
@@ -219,6 +327,17 @@ def execute_direct_analysis(
         corrective_actions = [
             "Implement 5S housekeeping standard across working bays.",
             "Verify aisle clearance during end-of-shift handover."
+        ]
+    elif "ppe" in comb_lower or "safety glasses" in comb_lower or "helmet" in comb_lower or "goggles" in comb_lower:
+        recommended_controls = [
+            "Provide required safety equipment / PPE immediately before worker continues task.",
+            "Brief frontline team on mandatory 100% PPE compliance in operational areas.",
+            "Verify all personnel on shift are equipped with inspected PPE.",
+            "Document observation in shift safety briefing log."
+        ]
+        corrective_actions = [
+            "Conduct shift safety stand-down on Life-Saving Rule personal accountability.",
+            "Ensure frontline supervisor enforces pre-task PPE checks."
         ]
     elif is_sif:
         recommended_controls = [
@@ -244,16 +363,18 @@ def execute_direct_analysis(
             "Review standard operating procedures with shift crew"
         ]
 
-    # Report Name
-    if request.report_name and request.report_name.strip():
-        report_name = request.report_name.strip()
-    elif raw_result.get("identified_hazard"):
+    # Report Name: prioritize actual AI-identified hazard
+    if raw_result.get("identified_hazard") and raw_result["identified_hazard"] not in ["Insufficient Information", "General Operational Observation"]:
         report_name = raw_result["identified_hazard"]
+    elif request.report_name and request.report_name.strip() and not request.report_name.strip().startswith("Safety Observation"):
+        report_name = request.report_name.strip()
+    elif checklist_items:
+        report_name = f"{' & '.join(checklist_items[:2])} Observation ({location})"
     else:
         report_name = f"{norm_type.replace('_', ' ').title()} Observation ({location})"
 
+
     # 7. Check for duplicate using Issue #11 composite duplicate key
-    description_for_report = description
     extra_context = request.additional_context
 
     report_create = SafetyReportCreate(
@@ -345,7 +466,8 @@ def execute_direct_analysis(
                 f"Energy Vector: {energy_val}",
                 f"Worker Exposure: {raw_result.get('exposure') or 'None detected'}",
                 f"Barrier Condition: {barrier_status_desc}",
-                f"Life-Saving Rule: {iogp_rule or default_lsr}"
+                f"Life-Saving Rule: {iogp_rule or default_lsr}",
+                *( [f"Evaluated Safety Factors: {', '.join(checklist_items)}"] if checklist_items else [] )
             ],
             "evidence_spans": [
                 {
@@ -359,7 +481,15 @@ def execute_direct_analysis(
                     "value": barrier_status_desc,
                     "confidence": confidence,
                     "source": "Operational Narrative Text"
-                }
+                },
+                *( [
+                    {
+                        "field": "safety_factors",
+                        "value": ", ".join(checklist_items),
+                        "confidence": confidence,
+                        "source": "Checklist Selections"
+                    }
+                ] if checklist_items else [] )
             ]
         },
         recommended_controls=recommended_controls,

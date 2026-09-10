@@ -31,7 +31,7 @@ class AIAnalysisRequest(BaseModel):
     location: Optional[str] = Field(default="Unit 1")
     site: Optional[str] = None
     report_date: Optional[str] = None
-    additional_context: Optional[str] = None
+    additional_context: Optional[Union[str, List[str]]] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -40,7 +40,11 @@ class AIAnalysisRequest(BaseModel):
             if not values.get("report_text"):
                 values["report_text"] = values.get("text") or values.get("description") or ""
             if not values.get("location"):
-                values["location"] = values.get("facility_unit") or values.get("site") or "Unit 1"
+                values["location"] = values.get("facility_unit") or values.get("site") or values.get("operating_unit") or "Unit 1"
+            if not values.get("report_type"):
+                values["report_type"] = values.get("classification") or "NEAR_MISS"
+            if isinstance(values.get("additional_context"), list):
+                values["additional_context"] = f"Safety Factors: {', '.join(str(x) for x in values['additional_context'])}"
         return values
 
 class AIAnalysisExecuteResponse(BaseModel):

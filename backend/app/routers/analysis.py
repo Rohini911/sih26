@@ -1,3 +1,4 @@
+import re
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -265,16 +266,29 @@ def analyze_safety_observation(
     Uses the Safety Observation Validity Layer to accurately accept legitimate
     operational and environmental safety reports, executes the multi-stage AI pipeline,
     and returns dynamic structured results.
+    Accepts checklist-only, description-only, or combined observations.
     """
-    text = payload.report_text.strip()
-    if len(text) < 4:
+    text = (payload.report_text or "").strip()
+
+    # Safely extract checklist_items from additional_context regardless of combination
+    checklist_items: List[str] = []
+    if payload.additional_context:
+        ctx_val = payload.additional_context if isinstance(payload.additional_context, str) else ", ".join(str(x) for x in payload.additional_context)
+        factors_text = ctx_val.replace("Safety Factors:", "").strip()
+        checklist_items = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
+
+    # Backend validation rule:
+    # VALID if: description != empty OR checklist_items.length > 0
+    # INVALID only if: description is empty AND checklist_items is empty
+    if not text and len(checklist_items) == 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Safety observation description must be at least 4 characters."
+            detail="Please provide at least one safety observation or select at least one checklist factor."
         )
 
     # Multi-Stage Step 1: Safety Observation Validity Layer
-    validity = classify_safety_observation_validity(text)
+    validity_input = f"{text} {payload.additional_context or ''}".strip()
+    validity = classify_safety_observation_validity(validity_input)
 
     if validity["is_unrelated"]:
         return AIAnalysisExecuteResponse(

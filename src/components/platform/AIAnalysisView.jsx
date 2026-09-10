@@ -32,7 +32,11 @@ import {
   Database,
   Network,
   Crosshair,
-  Info
+  Info,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare,
+  Search
 } from 'lucide-react';
 import { api } from '../../services/api';
 import FullAnalysisModal from './FullAnalysisModal';
@@ -276,7 +280,14 @@ const SAFETY_KEYWORDS = [
   // Plant Equipment, Mobile & Logistics
   'pump', 'engine', 'compressor', 'turbine', 'generator', 'motor', 'forklift', 'truck',
   'vehicle', 'trailer', 'traffic', 'reversing', 'driver', 'driving', 'seatbelt', 'brake',
-  'excavat', 'trench', 'pit', 'housekeeping', 'clutter', 'obstruction', 'puddle'
+  'excavat', 'trench', 'pit', 'housekeeping', 'clutter', 'obstruction', 'puddle',
+
+  // Operational, Behavioral & Administrative Safety
+  'machinery', 'machine', 'equipment', 'operation', 'operating', 'operate',
+  'restrict', 'restricted', 'exclusion', 'unauthorized', 'entry', 'entering', 'zone',
+  'procedure', 'sop', 'protocol', 'instruction', 'bypass', 'bypassing', 'override',
+  'compliance', 'violation', 'non-compliance', 'line of fire', 'struck-by', 'proximity',
+  'surface', 'floor', 'walkway', 'slippery', 'wet'
 ];
 
 const UNRELATED_TERMS = [
@@ -298,7 +309,10 @@ const CONVERSATIONAL_PATTERNS = [
   /^(hi|hii|hiii|hello|hey|heyy|yo|test|testing|check)\b/i
 ];
 
-function isUnrelatedIssue(text) {
+function isUnrelatedIssue(text, checklist = []) {
+  if (Array.isArray(checklist) && checklist.length > 0) {
+    return false;
+  }
   if (!text) return true;
   const cleaned = text.trim().toLowerCase();
   if (cleaned.length === 0) return true;
@@ -313,13 +327,17 @@ function isUnrelatedIssue(text) {
   return false;
 }
 
-function isTrivialInput(text) {
-  return isUnrelatedIssue(text);
+function isTrivialInput(text, checklist = []) {
+  return isUnrelatedIssue(text, checklist);
 }
 
-function deriveReportName(text, type, loc) {
+function deriveReportName(text, type, loc, checklist = []) {
+  if (!text && Array.isArray(checklist) && checklist.length > 0) {
+    return `${checklist.slice(0, 2).join(' & ')} Observation (${loc})`;
+  }
   if (!text) return `Safety Observation (${loc})`;
-  if (isUnrelatedIssue(text)) return 'Enter Correct Issue';
+
+  if (isUnrelatedIssue(text, checklist)) return 'Enter Correct Issue';
   const matched = AVAILABLE_UPLOADED_REPORTS.find(r => r.text.trim() === text.trim());
   if (matched && matched.name) return matched.name;
 
@@ -352,69 +370,166 @@ function deriveReportName(text, type, loc) {
   return `Safety Observation Report (${loc})`;
 }
 
-function calculateDynamicRiskScore(hazard, energy, exposure, barrierStatus, sifStatus, text) {
-  if (isTrivialInput(text)) return 0;
+function calculateDynamicRiskScore(hazard, energy, exposure, barrierStatus, sifStatus, text, checklist) {
+  if (isTrivialInput(text) && (!checklist || checklist.length === 0)) return 0;
   
-  // 1. Hazard severity (0–30)
-  let sev = 10;
-  const hLow = (hazard || '').toLowerCase();
-  if (['arc flash', 'electrical', 'explosion', 'gas leak', 'flammable', 'suspended load', 'dropped object', 'amputation'].some(k => hLow.includes(k))) {
-    sev = 28;
-  } else if (['fall from height', 'work at height', 'excavation', 'fire', 'chemical'].some(k => hLow.includes(k))) {
-    sev = 24;
-  } else if (hLow.includes('slip') || hLow.includes('trip')) {
-    sev = 8;
-  }
-
-  // 2. Energy exposure (0–25)
-  let ene = 5;
-  const eLow = (energy || '').toLowerCase();
-  if (energy && energy !== 'Insufficient Information') {
-    if (['high-voltage', 'arc flash', 'pneumatic', 'pressure', 'toxic', 'thermal'].some(k => eLow.includes(k))) {
-      ene = 24;
-    } else if (eLow.includes('gravity / kinetic') || eLow.includes('low kinetic')) {
-      ene = 5;
-    } else if (eLow.includes('gravity') || eLow.includes('kinetic')) {
-      ene = 15;
-    }
-  }
-
-  // 3. Worker exposure (0–20)
-  let exp = 5;
-  const exLow = (exposure || '').toLowerCase();
-  if (exposure && exposure !== 'Insufficient Information') {
-    if (['line-of-fire', 'direct physical proximity', 'fall edge'].some(k => exLow.includes(k))) {
-      exp = 18;
-    } else if (exLow.includes('slip/fall exposure')) {
-      exp = 6;
-    }
-  }
-
-  // 4. Barrier condition (0–15)
-  let bar = 4;
-  if (barrierStatus === 'Barrier Failed' || barrierStatus === 'BARRIER_FAILED') {
-    bar = 15;
-  } else if (barrierStatus === 'Barrier Missing' || barrierStatus === 'BARRIER_MISSING') {
-    bar = 13;
-  } else if (barrierStatus === 'Barrier Intact' || barrierStatus === 'BARRIER_PRESENT') {
-    bar = 2;
-  } else {
-    bar = 4;
-  }
-
-  // 5. Escalation potential (0–10)
-  let esc = 3;
   const tLow = (text || '').toLowerCase();
-  if (['flame', 'smoke', 'hiss', 'pressure', 'high', 'spreading'].some(k => tLow.includes(k))) {
-    esc = 9;
-  } else if (['stairs', 'steps', 'edge', 'ramp'].some(k => tLow.includes(k))) {
-    esc = 5;
-  } else if (['water', 'oil', 'grease', 'spill'].some(k => tLow.includes(k))) {
-    esc = 4;
+  const hLow = (hazard || '').toLowerCase();
+  const eLow = (energy || '').toLowerCase();
+  const exLow = (exposure || '').toLowerCase();
+  const bNorm = (barrierStatus || '').toUpperCase();
+  const checkListLower = Array.isArray(checklist) ? checklist.map(c => c.toLowerCase()) : [];
+  const combText = `${tLow} ${hLow} ${checkListLower.join(' ')}`;
+
+  // 1. Multi-Hazard Severity & Cumulative Factor Boost (0–35)
+  const detectedWeights = [];
+
+  // LOTO
+  if (/loto|lockout|tagout|isolation|not locked out|ignored loto/.test(combText)) {
+    detectedWeights.push(30);
+  }
+  // Confined Space
+  if (/confined space|tank entry|vessel entry|atmospheric monitoring|gas test/.test(combText)) {
+    detectedWeights.push(30);
+  }
+  // High Pressure
+  if (/high[- ]pressure|pressurized|hydraulic|pneumatic|pipe burst|blowout|psi|bar/.test(combText)) {
+    detectedWeights.push(28);
+  }
+  // Line of Fire
+  if (/line[- ]of[- ]fire|line of fire|under load|suspended load|dropped object|struck-by/.test(combText)) {
+    detectedWeights.push(28);
+  }
+  // Electrical
+  if (/electrical|arc flash|voltage|switchgear|11kv|415v/.test(combText)) {
+    detectedWeights.push(28);
+  }
+  // Fall from height
+  if (/fall from height|work at height|scaffold|ladder|roof edge/.test(combText)) {
+    detectedWeights.push(26);
+  }
+  // Fire / explosion
+  const fireText = combText.replace(/line[- ]of[- ]fire/g, '');
+  if (/fire|explosion|hot work|welding|flash/.test(fireText)) {
+    detectedWeights.push(26);
+  }
+  // PPE
+  if (/ppe|safety glasses|helmet|goggles|respirator/.test(combText)) {
+    const hasCritical = /loto|lockout|pressure|high-pressure|confined space|electrical|suspended load/.test(combText);
+    detectedWeights.push(hasCritical ? 22 : 14);
+  }
+  // Slip/trip/housekeeping
+  if (/slip|trip|housekeeping/.test(combText)) {
+    detectedWeights.push(8);
   }
 
-  const total = sev + ene + exp + bar + esc;
-  return Math.max(0, Math.min(100, total));
+  if (detectedWeights.length === 0) {
+    detectedWeights.push(10);
+  }
+
+  detectedWeights.sort((a, b) => b - a);
+  let hazardScore = detectedWeights[0];
+  for (let i = 1; i < detectedWeights.length; i++) {
+    const w = detectedWeights[i];
+    if (w >= 26) hazardScore += 6;
+    else if (w >= 20) hazardScore += 4;
+    else hazardScore += 2;
+  }
+  hazardScore = Math.min(35, hazardScore);
+
+  // 2. Energy exposure (0–28)
+  let energyScore = 6;
+  if (/high[- ]pressure|pressure|hydraulic|pneumatic|blowout|psi|bar/.test(combText) || /pressure|pneumatic|hydraulic/.test(eLow)) {
+    energyScore = 28;
+  } else if (/electrical|arc flash|voltage|11kv|415v/.test(combText) || /electrical/.test(eLow)) {
+    energyScore = 28;
+  } else if (/confined space|tank entry|toxic|atmospheric|h2s/.test(combText) || /toxic|atmospheric/.test(eLow)) {
+    energyScore = 26;
+  } else if (/gravity|suspended load|dropped object|fall from height|work at height/.test(combText) || /gravity/.test(eLow)) {
+    energyScore = 25;
+  } else if (/thermal|fire|flame/.test(combText) || /thermal/.test(eLow)) {
+    energyScore = 24;
+  } else if (/kinetic|mobile equipment|forklift|vehicle/.test(combText) || /kinetic/.test(eLow)) {
+    energyScore = 20;
+  } else if (eLow.includes('multiple')) {
+    energyScore = 26;
+  } else if (eLow.includes('chemical')) {
+    energyScore = 18;
+  }
+
+  // 3. Worker exposure (0–22)
+  let exposureScore = 6;
+  if (/line-of-fire|line of fire|stood in the line of fire|under load|under suspended load|beneath suspended/.test(combText) || /line-of-fire/.test(exLow)) {
+    exposureScore = 22;
+  } else if (/confined space|inside vessel|tank entry/.test(combText) || /confined space/.test(exLow)) {
+    exposureScore = 20;
+  } else if (/touching live|live panel|direct physical proximity|fall edge/.test(combText) || /direct physical/.test(exLow)) {
+    exposureScore = 20;
+  } else if (/trajectory|restricted area|near moving/.test(combText)) {
+    exposureScore = 16;
+  } else if (/not exposed|zero exposure/.test(combText) || /not exposed/.test(exLow)) {
+    exposureScore = 2;
+  } else if (/slip|walking|door/.test(combText)) {
+    exposureScore = 5;
+  } else {
+    exposureScore = 8;
+  }
+
+  // 4. Barrier condition (0–20)
+  let barrierScore = 4;
+  if (/FAILED|RUPTURE/.test(bNorm)) {
+    barrierScore = 20;
+  } else if (/BYPASSED|OVERRIDDEN/.test(bNorm)) {
+    barrierScore = 20;
+  } else if (/MISSING|NOT DEPLOYED/.test(bNorm) || /loto not followed|ignored loto|without isolation|not locked out/.test(combText)) {
+    if (/loto|lockout|isolation|gas test|guard/.test(combText)) {
+      barrierScore = 18;
+    } else {
+      barrierScore = 10;
+    }
+  } else if (/COMPROMISED|DEGRADED/.test(bNorm)) {
+    barrierScore = 10;
+  } else if (/PRESENT|INTACT|FUNCTIONING/.test(bNorm)) {
+    barrierScore = 2;
+  } else {
+    barrierScore = 5;
+  }
+
+  // 5. Synergy escalation (0–15)
+  let synergyScore = 0;
+  const hasLoto = /loto|lockout|tagout|isolation/.test(combText);
+  const hasLof = /line of fire|line-of-fire|under load|suspended load/.test(combText);
+  const hasPress = /high[- ]pressure|pressure|hydraulic|pneumatic/.test(combText);
+  const hasConf = /confined space|tank entry|vessel entry/.test(combText);
+
+  if (hasLoto && hasLof && hasPress) {
+    synergyScore = 12;
+  } else if (hasConf && hasLoto) {
+    synergyScore = 12;
+  } else if (/suspended load/.test(combText) && hasLof) {
+    synergyScore = 10;
+  } else if (hasLoto && hasPress) {
+    synergyScore = 8;
+  } else if (hasPress && hasLof) {
+    synergyScore = 8;
+  }
+
+  const rawScore = hazardScore + energyScore + exposureScore + barrierScore + synergyScore;
+
+  let scaledScore = 25;
+  if (rawScore >= 100) {
+    scaledScore = Math.min(95, 85 + Math.floor((rawScore - 100) * 0.6));
+  } else if (rawScore >= 80) {
+    scaledScore = Math.min(88, 75 + Math.floor((rawScore - 80) * 0.65));
+  } else if (rawScore >= 60) {
+    scaledScore = Math.min(74, 55 + Math.floor((rawScore - 60) * 0.95));
+  } else if (rawScore >= 40) {
+    scaledScore = Math.min(54, 38 + Math.floor((rawScore - 40) * 0.8));
+  } else {
+    scaledScore = Math.max(5, Math.floor(rawScore * 0.85));
+  }
+
+  return Math.max(0, Math.min(100, scaledScore));
 }
 
 function getDynamicRecommendations(hazard, text) {
@@ -599,6 +714,101 @@ function generateAllWeakSignalsAnalysis(storedReports, currentResult, currentTex
   return results;
 }
 
+const CLASSIFICATION_CHECKLISTS = {
+  NEAR_MISS: [
+    { id: 'nm_slip_trip', label: 'Slip / Trip / Fall', keywords: ['slip', 'trip', 'fall', 'stumble', 'floor'] },
+    { id: 'nm_work_height', label: 'Working at height', keywords: ['height', 'scaffold', 'ladder', 'elevat', 'fall', 'tie-off'] },
+    { id: 'nm_dropped_object', label: 'Dropped object', keywords: ['dropped', 'falling', 'overhead', 'load', 'crane', 'hoist', 'rigging'] },
+    { id: 'nm_vehicle_near_miss', label: 'Near miss with vehicle', keywords: ['vehicle', 'truck', 'forklift', 'car', 'trailer', 'driver'] },
+    { id: 'nm_moving_equip', label: 'Near miss with moving equipment', keywords: ['moving', 'machinery', 'rotating', 'conveyor', 'crane'] },
+    { id: 'nm_equip_failure', label: 'Equipment failure', keywords: ['equipment', 'failure', 'fail', 'malfunction', 'broken', 'defect'] },
+    { id: 'nm_mechanical_failure', label: 'Mechanical failure', keywords: ['mechanical', 'pump', 'engine', 'compressor', 'turbine', 'motor'] },
+    { id: 'nm_electrical', label: 'Electrical hazard', keywords: ['electrical', 'electric', 'voltage', 'arc', 'wire', 'cable', 'breaker', 'shock'] },
+    { id: 'nm_fire_explosion', label: 'Fire / Explosion risk', keywords: ['fire', 'flame', 'explosion', 'blast', 'smoke', 'burn', 'ignit', 'spark'] },
+    { id: 'nm_gas_release', label: 'Gas release', keywords: ['gas', 'vapor', 'vapour', 'fume', 'lel', 'release', 'hiss'] },
+    { id: 'nm_hydrocarbon_leak', label: 'Hydrocarbon leak', keywords: ['hydrocarbon', 'oil', 'fuel', 'diesel', 'petrol', 'crude', 'leak'] },
+    { id: 'nm_chemical_exposure', label: 'Chemical exposure', keywords: ['chemical', 'acid', 'caustic', 'solvent', 'toxic'] },
+    { id: 'nm_pressure_release', label: 'Pressure release', keywords: ['pressure', 'psi', 'bar', 'pressur', 'relief', 'vessel', 'blowout'] },
+    { id: 'nm_energy_release', label: 'Unexpected energy release', keywords: ['energy', 'release', 'stored', 'spring', 'hydraulic', 'pneumatic'] },
+    { id: 'nm_unsafe_prox', label: 'Unsafe proximity', keywords: ['proximity', 'close', 'near', 'distance', 'zone', 'clearance'] },
+    { id: 'nm_line_of_fire', label: 'Line of fire', keywords: ['line of fire', 'moving', 'pinch', 'crush', 'struck', 'barrier'] },
+    { id: 'nm_struck_by', label: 'Struck-by hazard', keywords: ['struck', 'impact', 'collision', 'hit', 'swing'] },
+    { id: 'nm_pinch_point', label: 'Pinch point', keywords: ['pinch', 'crush', 'caught', 'roller', 'gear'] },
+    { id: 'nm_confined_space', label: 'Confined space', keywords: ['confined', 'tank', 'vessel', 'entry', 'manhole'] },
+    { id: 'nm_ppe_issue', label: 'PPE issue', keywords: ['ppe', 'helmet', 'gloves', 'goggle', 'glasses', 'respirator', 'mask', 'shield'] },
+    { id: 'nm_emergency_response', label: 'Emergency response issue', keywords: ['emergency', 'alarm', 'siren', 'evacuation', 'muster'] },
+    { id: 'nm_process_dev', label: 'Process deviation', keywords: ['process', 'deviation', 'pressure', 'temp', 'valve', 'flow', 'gauge'] },
+    { id: 'nm_ptw_issue', label: 'Permit-to-work issue', keywords: ['permit', 'ptw', 'work permit', 'authorization'] },
+    { id: 'nm_loto_issue', label: 'Lockout / Tagout issue', keywords: ['loto', 'lockout', 'tagout', 'isolation', 'de-energiz'] },
+    { id: 'nm_comm_failure', label: 'Communication failure', keywords: ['communication', 'radio', 'misunderstand', 'signal', 'hand signal'] },
+    { id: 'nm_inadequate_supervision', label: 'Inadequate supervision', keywords: ['supervision', 'supervisor', 'unsupervised', 'oversight'] }
+  ],
+  UNSAFE_ACT: [
+    { id: 'ua_ppe_not_used', label: 'PPE not used', keywords: ['ppe', 'helmet', 'gloves', 'goggle', 'glasses', 'respirator', 'mask', 'wear'] },
+    { id: 'ua_incorrect_ppe', label: 'Incorrect PPE used', keywords: ['ppe', 'wrong', 'incorrect', 'improper', 'protection'] },
+    { id: 'ua_proc_not_followed', label: 'Procedure not followed', keywords: ['procedure', 'sop', 'protocol', 'permit', 'ptw', 'rule', 'instruction'] },
+    { id: 'ua_unsafe_op', label: 'Unsafe operation', keywords: ['operation', 'operate', 'speed', 'bypassed', 'reckless', 'rushing'] },
+    { id: 'ua_unauth_op', label: 'Unauthorized operation', keywords: ['unauthorized', 'operation', 'unapproved', 'unqualified'] },
+    { id: 'ua_bypassing_control', label: 'Bypassing safety control', keywords: ['bypassed', 'bypass', 'interlock', 'tamper', 'defeat', 'bridge'] },
+    { id: 'ua_height_no_prot', label: 'Working at height without protection', keywords: ['height', 'scaffold', 'ladder', 'harness', 'unclipped', 'tie-off', 'fall'] },
+    { id: 'ua_unsafe_lifting', label: 'Unsafe lifting', keywords: ['lifting', 'lift', 'back', 'ergonomic', 'heavy', 'rigging', 'sling'] },
+    { id: 'ua_unsafe_manual_handling', label: 'Unsafe manual handling', keywords: ['manual', 'handling', 'carry', 'push', 'pull', 'strain'] },
+    { id: 'ua_enter_restricted', label: 'Entering restricted area', keywords: ['restricted', 'unauthorized', 'barricade', 'cordon', 'exclusion'] },
+    { id: 'ua_enter_line_of_fire', label: 'Entering line of fire', keywords: ['line of fire', 'path', 'crush', 'swing', 'trajectory'] },
+    { id: 'ua_under_load', label: 'Standing under suspended load', keywords: ['suspended', 'load', 'crane', 'under', 'overhead', 'hoist'] },
+    { id: 'ua_near_moving_equip', label: 'Working near moving equipment', keywords: ['moving', 'equipment', 'machinery', 'proximity', 'close'] },
+    { id: 'ua_unsafe_vehicle_op', label: 'Unsafe vehicle operation', keywords: ['vehicle', 'forklift', 'truck', 'driving', 'reversing', 'traffic'] },
+    { id: 'ua_speeding', label: 'Speeding', keywords: ['speeding', 'speed', 'fast', 'rushing', 'limit'] },
+    { id: 'ua_phone_distraction', label: 'Mobile phone distraction', keywords: ['phone', 'mobile', 'distraction', 'cell', 'calling', 'texting'] },
+    { id: 'ua_loto_not_followed', label: 'Lockout / Tagout not followed', keywords: ['loto', 'lockout', 'tagout', 'isolation', 'de-energiz', 'energiz'] },
+    { id: 'ua_ptw_violation', label: 'Permit-to-work violation', keywords: ['permit', 'ptw', 'violation', 'unauthorized', 'expired'] },
+    { id: 'ua_confined_space_violation', label: 'Confined space procedure violation', keywords: ['confined', 'tank', 'entry', 'atmosphere', 'ventilation'] },
+    { id: 'ua_hot_work_violation', label: 'Hot work procedure violation', keywords: ['hot work', 'welding', 'cutting', 'grinding', 'spark', 'torch', 'fire watch'] },
+    { id: 'ua_smoking_restricted', label: 'Smoking in restricted area', keywords: ['smoking', 'smoke', 'cigarette', 'lighter', 'match'] },
+    { id: 'ua_improper_tool', label: 'Improper tool usage', keywords: ['tool', 'improvised', 'wrong tool', 'modified', 'damaged tool'] },
+    { id: 'ua_remove_guard', label: 'Removing machine guard', keywords: ['guard', 'removed', 'removal', 'cover', 'barrier'] },
+    { id: 'ua_op_without_auth', label: 'Operating without authorization', keywords: ['authorization', 'unauthorized', 'unqualified', 'unlicensed'] },
+    { id: 'ua_ignoring_alarm', label: 'Ignoring warning/alarm', keywords: ['alarm', 'warning', 'ignoring', 'ignored', 'siren', 'detector'] },
+    { id: 'ua_failure_communicate', label: 'Failure to communicate hazard', keywords: ['communicate', 'communication', 'warn', 'handover', 'briefing'] },
+    { id: 'ua_inadequate_supervision', label: 'Inadequate supervision', keywords: ['supervision', 'supervisor', 'unsupervised', 'oversight'] }
+  ],
+  UNSAFE_CONDITION: [
+    { id: 'uc_damaged_equip', label: 'Damaged equipment', keywords: ['damaged', 'damage', 'broken', 'wear', 'crack', 'defect', 'aged'] },
+    { id: 'uc_defective_equip', label: 'Defective equipment', keywords: ['defective', 'faulty', 'malfunction', 'broken', 'failure'] },
+    { id: 'uc_missing_guard', label: 'Missing machine guard', keywords: ['guard', 'missing guard', 'cover', 'shield', 'unprotected'] },
+    { id: 'uc_poor_housekeeping', label: 'Poor housekeeping', keywords: ['housekeeping', 'clutter', 'mess', 'spill', 'debris', 'trash', 'untidy'] },
+    { id: 'uc_slippery_surface', label: 'Slippery surface', keywords: ['slippery', 'slick', 'wet', 'oil on floor', 'grease'] },
+    { id: 'uc_uneven_surface', label: 'Uneven surface', keywords: ['uneven', 'pothole', 'grating', 'hole', 'trip', 'rough'] },
+    { id: 'uc_poor_lighting', label: 'Poor lighting', keywords: ['lighting', 'light', 'dark', 'dim', 'illumination', 'visibility', 'lamp'] },
+    { id: 'uc_unsafe_access', label: 'Unsafe access', keywords: ['access', 'walkway', 'catwalk', 'stairs', 'ladder', 'passage', 'egress', 'exit'] },
+    { id: 'uc_blocked_exit', label: 'Blocked emergency exit', keywords: ['exit', 'emergency exit', 'blocked', 'obstructed', 'egress'] },
+    { id: 'uc_electrical_hazard', label: 'Electrical hazard', keywords: ['electrical', 'electric', 'voltage', 'wire', 'exposed', 'panel', 'switch', 'cable'] },
+    { id: 'uc_exposed_wiring', label: 'Exposed wiring', keywords: ['wire', 'wiring', 'cable', 'bare', 'exposed', 'insulation'] },
+    { id: 'uc_fire_hazard', label: 'Fire hazard', keywords: ['fire', 'flammable', 'combustible', 'spark', 'solvent', 'heat', 'ignit'] },
+    { id: 'uc_gas_leak', label: 'Gas leak', keywords: ['gas', 'leak', 'hiss', 'odor', 'smell', 'lel', 'vapor'] },
+    { id: 'uc_hydrocarbon_leak', label: 'Hydrocarbon leak', keywords: ['hydrocarbon', 'oil', 'fuel', 'crude', 'diesel', 'petrol', 'condensate'] },
+    { id: 'uc_chemical_spill', label: 'Chemical spill', keywords: ['chemical', 'spill', 'acid', 'caustic', 'toxic', 'puddle'] },
+    { id: 'uc_corroded_equip', label: 'Corroded equipment', keywords: ['corros', 'rust', 'erosion', 'pitting', 'wall thinning'] },
+    { id: 'uc_high_pressure', label: 'High pressure hazard', keywords: ['pressure', 'high pressure', 'psi', 'bar', 'relief valve'] },
+    { id: 'uc_high_temp', label: 'High temperature hazard', keywords: ['temperature', 'hot', 'thermal', 'heat', 'steam', 'burn'] },
+    { id: 'uc_unprot_machinery', label: 'Unprotected moving machinery', keywords: ['machinery', 'moving', 'rotating', 'unprotected', 'unguarded'] },
+    { id: 'uc_missing_barricade', label: 'Missing barricade', keywords: ['barricade', 'barrier', 'cordon', 'fence', 'tape'] },
+    { id: 'uc_missing_sign', label: 'Missing warning sign', keywords: ['sign', 'signage', 'warning sign', 'caution', 'label'] },
+    { id: 'uc_inadequate_ventilation', label: 'Inadequate ventilation', keywords: ['ventilation', 'exhaust', 'airflow', 'fume', 'stagnant'] },
+    { id: 'uc_confined_space_hazard', label: 'Confined space hazard', keywords: ['confined', 'tank', 'pit', 'manhole', 'asphyx'] },
+    { id: 'uc_fall_hazard', label: 'Fall hazard', keywords: ['fall', 'edge', 'opening', 'drop', 'unprotected edge', 'hole'] },
+    { id: 'uc_dropped_obj_hazard', label: 'Dropped object hazard', keywords: ['dropped', 'falling object', 'overhead', 'loose', 'toeboard'] },
+    { id: 'uc_unsafe_scaffolding', label: 'Unsafe scaffolding', keywords: ['scaffold', 'scaffolding', 'plank', 'handrail', 'clamp', 'green tag'] },
+    { id: 'uc_damaged_ladder', label: 'Damaged ladder', keywords: ['ladder', 'rung', 'step ladder', 'cracked ladder'] },
+    { id: 'uc_structural_damage', label: 'Structural damage', keywords: ['structural', 'structure', 'beam', 'support', 'grating', 'deck', 'sag'] },
+    { id: 'uc_emergency_equip_unavail', label: 'Emergency equipment unavailable', keywords: ['emergency', 'eyewash', 'safety shower', 'first aid', 'stretcher'] },
+    { id: 'uc_fire_exting_unavail', label: 'Fire extinguisher unavailable', keywords: ['extinguisher', 'fire extinguisher', 'co2', 'hose reel', 'depleted'] },
+    { id: 'uc_alarm_malfunction', label: 'Safety alarm malfunction', keywords: ['alarm', 'malfunction', 'detector', 'siren', 'fault', 'trouble'] },
+    { id: 'uc_barrier_failure', label: 'Process safety barrier failure', keywords: ['barrier', 'failure', 'esd', 'psv', 'seal', 'gasket blowout'] },
+    { id: 'uc_inadequate_ppe_avail', label: 'Inadequate PPE availability', keywords: ['ppe', 'unavailable', 'shortage', 'stock', 'supply'] }
+  ]
+};
+
 export default function AIAnalysisView() {
   const [reportType, setReportType] = useState('NEAR_MISS');
   const [description, setDescription] = useState('');
@@ -609,6 +819,11 @@ export default function AIAnalysisView() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [validationError, setValidationError] = useState('');
   const [uploadedIndex, setUploadedIndex] = useState(0);
+
+  // Interactive controls state: Checklist & Search
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [checklistSearch, setChecklistSearch] = useState('');
+  const [selectedChecklist, setSelectedChecklist] = useState([]);
 
   // Auto-saved confirmation state
   const [autoSavedInfo, setAutoSavedInfo] = useState(null);
@@ -648,12 +863,20 @@ export default function AIAnalysisView() {
     };
   }, []);
 
-  const executeInference = async (textToAnalyze, typeToUse, unitToUse) => {
-    const text = (textToAnalyze || description || '').trim();
+  const executeInference = async (textToAnalyze, typeToUse, unitToUse, checklistToUse) => {
+    const text = (textToAnalyze !== undefined ? textToAnalyze : description).trim();
     const loc = unitToUse || location;
     const rType = typeToUse || reportType;
+    const currentChecklist = checklistToUse !== undefined ? checklistToUse : selectedChecklist;
 
-    if (!text) return;
+    // ALLOW submission when description exists OR at least one checklist factor is selected.
+    // Only reject when BOTH are empty.
+    if (!text && (!currentChecklist || currentChecklist.length === 0)) {
+      setValidationError('Please enter a safety observation or select at least one checklist factor.');
+      setAnalysisResult(null);
+      setIsAnalyzing(false);
+      return;
+    }
 
     setIsAnalyzing(true);
     setAutoSavedInfo(null);
@@ -671,8 +894,8 @@ export default function AIAnalysisView() {
       setAnalysisStep('Phase 4/4: Computing neural risk score & SIF precursor determination...');
     }, 750);
 
-    const isUnrelated = isUnrelatedIssue(text);
-    const reportName = deriveReportName(text, rType, loc);
+    const isUnrelated = isUnrelatedIssue(text, currentChecklist);
+    const reportName = deriveReportName(text, rType, loc, currentChecklist);
 
     // UNRELATED / TRIVIAL INPUT INTERCEPT: Prompt user to enter a correct safety issue
     if (isUnrelated) {
@@ -715,11 +938,15 @@ export default function AIAnalysisView() {
     try {
       const backendResult = await api.executeAiAnalysis({
         report_text: text,
+        description: text,
         report_name: reportName,
         report_type: rType === 'NEAR_MISS' ? 'Near Miss' : rType === 'UNSAFE_ACT' ? 'Unsafe Act' : 'Unsafe Condition',
+        classification: rType === 'NEAR_MISS' ? 'Near Miss' : rType === 'UNSAFE_ACT' ? 'Unsafe Act' : 'Unsafe Condition',
         location: loc,
+        operating_unit: loc,
         site: loc === 'Unit 1' ? 'Plant 01' : loc === 'Unit 2' ? 'Plant 02' : loc === 'Unit 3' ? 'Plant 03' : 'Plant 04',
-        report_date: reportDate
+        report_date: reportDate,
+        ...(currentChecklist.length > 0 ? { additional_context: `Safety Factors: ${currentChecklist.join(', ')}` } : {})
       });
 
       if (backendResult) {
@@ -763,10 +990,10 @@ export default function AIAnalysisView() {
             ? backendResult.sif_potential_score 
             : typeof backendResult.risk_score === 'number'
             ? backendResult.risk_score
-            : calculateDynamicRiskScore(backendResult.hazard, backendResult.energy_vector, backendResult.worker_exposure, backendResult.barrier_status, sifVal, text);
+            : calculateDynamicRiskScore(backendResult.hazard, backendResult.energy_vector, backendResult.worker_exposure, backendResult.barrier_status, sifVal, text, currentChecklist);
           const confidence = backendResult.confidence !== undefined ? backendResult.confidence : getDynamicConfidence(backendResult.hazard, backendResult.energy_vector, backendResult.worker_exposure, backendResult.barrier_status, text);
 
-          const hazards = Array.isArray(backendResult.detected_hazards) && backendResult.detected_hazards.length > 0
+          const rawHazards = Array.isArray(backendResult.detected_hazards) && backendResult.detected_hazards.length > 0
             ? backendResult.detected_hazards
             : [
                 `Hazard: ${backendResult.hazard || 'Insufficient Information'}`,
@@ -774,6 +1001,20 @@ export default function AIAnalysisView() {
                 `Worker Exposure: ${backendResult.worker_exposure || 'Insufficient Information'}`,
                 `Barrier Status: ${backendResult.barrier_status || 'Insufficient Information'}`
               ];
+
+          const hazards = [...rawHazards];
+          if (currentChecklist && currentChecklist.length > 0) {
+            currentChecklist.forEach(factor => {
+              const fWords = factor.toLowerCase().split(/\s+/).filter(w => !['not', 'followed', 'hazard', 'issue'].includes(w));
+              const alreadyCovered = hazards.some(h => {
+                const hl = h.toLowerCase();
+                return hl.includes(factor.toLowerCase()) || (fWords.length > 0 && fWords.some(w => hl.includes(w)));
+              });
+              if (!alreadyCovered) {
+                hazards.push(`Safety Factor: ${factor}`);
+              }
+            });
+          }
 
           const recControls = Array.isArray(backendResult.recommended_controls) && backendResult.recommended_controls.length > 0
             ? backendResult.recommended_controls
@@ -840,7 +1081,8 @@ export default function AIAnalysisView() {
             human_sif_score: null,
             reviewer_feedback: null,
             review_status: 'Pending Review',
-            created_at: backendResult.created_at || new Date().toISOString()
+            created_at: backendResult.created_at || new Date().toISOString(),
+            safety_factors: currentChecklist
           };
 
           syncBackendReportsToStore([reportRecordToSync], [], false);
@@ -860,11 +1102,11 @@ export default function AIAnalysisView() {
                 barrier_status: ws.barrier_status || finalResult.barrier_status,
                 potential_sif_precursor: ws.potential_sif_precursor || `Potential SIF Precursor escalation toward ${finalResult.hazard}`,
                 source_reports: [{
-                  report_id: savedRef,
-                  report_type: newRecordToSave.report_type,
-                  date_submitted: newRecordToSave.report_date,
-                  short_description: newRecordToSave.description,
-                  unit: newRecordToSave.location,
+                  report_id: reportRecordToSync.report_reference || `REC-${reportRecordToSync.id}`,
+                  report_type: reportRecordToSync.report_type,
+                  date_submitted: reportRecordToSync.report_date,
+                  short_description: reportRecordToSync.description,
+                  unit: reportRecordToSync.location,
                   excerpt: text
                 }]
               });
@@ -891,33 +1133,54 @@ export default function AIAnalysisView() {
     setAnalysisStep('');
     setAutoSavedInfo(null);
     setValidationError('');
+    setShowChecklist(false);
+    setChecklistSearch('');
+    setSelectedChecklist([]);
   };
+
+  const toggleChecklistItem = (itemLabel) => {
+    setSelectedChecklist((prev) =>
+      prev.includes(itemLabel)
+        ? prev.filter((label) => label !== itemLabel)
+        : [...prev, itemLabel]
+    );
+    if (validationError) setValidationError('');
+    if (analysisResult) setAnalysisResult(null);
+  };
+
+  const currentCategoryChecklist = CLASSIFICATION_CHECKLISTS[reportType] || CLASSIFICATION_CHECKLISTS.NEAR_MISS;
+  const descLower = (description || '').toLowerCase();
+  const searchLower = checklistSearch.trim().toLowerCase();
+
+  const filteredChecklistOptions = currentCategoryChecklist
+    .map((item) => {
+      const isRelevant = Boolean(
+        descLower.trim() && item.keywords.some((kw) => descLower.includes(kw))
+      );
+      return { ...item, isRelevant };
+    })
+    .filter((item) => {
+      if (!searchLower) return true;
+      return item.label.toLowerCase().includes(searchLower);
+    });
 
   const handleRunAnalysis = async () => {
-    setValidationError('');
-    let textToAnalyze = description.trim().slice(0, 100);
-    let typeToUse = reportType;
-    let unitToUse = location;
+    const trimmedDescription = description.trim();
 
-    // If user has not typed anything, use the available uploaded safety report data
-    if (!textToAnalyze) {
-      const selectedUploaded = AVAILABLE_UPLOADED_REPORTS[uploadedIndex % AVAILABLE_UPLOADED_REPORTS.length];
-      textToAnalyze = selectedUploaded.text.slice(0, 100);
-      typeToUse = selectedUploaded.type;
-      unitToUse = selectedUploaded.location;
-      
-      setDescription(textToAnalyze);
-      setReportType(typeToUse);
-      setLocation(unitToUse);
-      setUploadedIndex(prev => prev + 1);
+    // ALLOW submission when description exists OR at least one checklist factor is selected.
+    // Only reject when BOTH are empty.
+    if (!trimmedDescription && (!selectedChecklist || selectedChecklist.length === 0)) {
+      setValidationError('Please enter a safety observation or select at least one checklist factor.');
+      setAnalysisResult(null);
+      return;
     }
 
-    setValidationError(null);
+    setValidationError('');
 
-    await executeInference(textToAnalyze, typeToUse, unitToUse);
+    await executeInference(trimmedDescription, reportType, location, selectedChecklist);
   };
 
-  const isUnrelated = isUnrelatedIssue(description);
+  const isUnrelated = isUnrelatedIssue(description, selectedChecklist);
   const isNonSafety = isUnrelated || analysisResult?.is_unrelated || analysisResult?.risk_score === 0 || analysisResult?.report_name?.includes('Non-Safety') || analysisResult?.report_name?.includes('Enter Correct Issue');
 
   // Dynamic Weak Signals from Backend DB (enforces >= 2 observations, strictly 0 for isolated/first event)
@@ -1004,7 +1267,7 @@ export default function AIAnalysisView() {
                 <FileText className="w-6 h-6 text-[#FF5A36]" />
                 <span>SAFETY OBSERVATION INPUT</span>
               </h3>
-              {(description || location !== 'Unit 1' || analysisResult) ? (
+              {(description || location !== 'Unit 1' || selectedChecklist.length > 0 || analysisResult) ? (
                 <button
                   type="button"
                   onClick={handleReset}
@@ -1109,6 +1372,143 @@ export default function AIAnalysisView() {
                 className="w-full p-4 rounded-xl bg-[#FAF8F5] border-2 border-stone-200 text-sm sm:text-base font-semibold text-slate-900 leading-relaxed focus:outline-none focus:bg-white focus:border-[#FF5A36] focus:ring-4 focus:ring-[#FF5A36]/10 placeholder:text-slate-400 placeholder:font-normal transition-all"
                 placeholder="Describe safety incident (up to 100 characters max)..."
               />
+            </div>
+
+            {/* Interactive Controls: Checklist with Search */}
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Checklist Toggle Button */}
+                <button
+                  type="button"
+                  id="toggle-checklist-btn"
+                  onClick={() => setShowChecklist((prev) => !prev)}
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold font-mono tracking-wide transition-all cursor-pointer flex items-center gap-2 border-2 ${
+                    showChecklist
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-[#FAF8F5] text-slate-700 border-stone-200/90 hover:bg-stone-100 hover:border-stone-300 hover:text-slate-900'
+                  }`}
+                  title={showChecklist ? 'Hide safety factors checklist' : 'Display safety factors checklist'}
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-[#FF5A36]" />
+                  <span>Checklist</span>
+                  {selectedChecklist.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-[#FF5A36] text-white">
+                      {selectedChecklist.length}
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono ml-0.5">{showChecklist ? '▲' : '▼'}</span>
+                </button>
+              </div>
+
+              {/* Expandable Panel: Dynamic Safety Factors Checklist with Search Bar */}
+              {showChecklist && (
+                <div 
+                  id="safety-factors-checklist-panel"
+                  className="p-4 sm:p-5 rounded-xl bg-[#FAF8F5] border-2 border-stone-200 text-slate-800 space-y-3 animate-in fade-in duration-200 shadow-xs"
+                >
+                  {/* Panel Top: Title & Classification indicator */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-800 font-heading">
+                        Select Safety Factors
+                      </span>
+                      <span className="text-[10px] font-mono font-bold text-[#FF5A36] uppercase px-2 py-0.5 bg-orange-100/80 rounded-md">
+                        {reportType === 'NEAR_MISS' ? 'Near Miss' : reportType === 'UNSAFE_ACT' ? 'Unsafe Act' : 'Unsafe Condition'}
+                      </span>
+                    </div>
+                    {selectedChecklist.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChecklist([])}
+                        className="text-[11px] font-mono font-bold text-[#FF5A36] hover:text-orange-700 underline cursor-pointer"
+                      >
+                        Clear All ({selectedChecklist.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search Bar Input */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={checklistSearch}
+                      onChange={(e) => setChecklistSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.preventDefault();
+                      }}
+                      placeholder="Search safety factors..."
+                      className="w-full pl-9 pr-8 py-2 rounded-lg bg-white border border-stone-200 text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:border-[#FF5A36] focus:ring-2 focus:ring-[#FF5A36]/20 transition-all placeholder:text-slate-400"
+                    />
+                    {checklistSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setChecklistSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Scrollable Checklist Options Grid */}
+                  <div className="max-h-64 sm:max-h-72 overflow-y-auto pr-1">
+                    {filteredChecklistOptions.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {filteredChecklistOptions.map((opt) => {
+                          const isSelected = selectedChecklist.includes(opt.label);
+                          const isSuggested = opt.isRelevant;
+                          return (
+                            <label
+                              key={opt.id}
+                              className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? 'bg-orange-50/90 border-[#FF5A36] text-slate-900 shadow-2xs font-bold'
+                                  : 'bg-white border-stone-200/90 text-slate-700 hover:bg-stone-50 hover:border-stone-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleChecklistItem(opt.label)}
+                                className="sr-only"
+                              />
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected 
+                                  ? 'bg-[#FF5A36] border-[#FF5A36] text-white' 
+                                  : 'border-slate-300 bg-white'
+                              }`}>
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <span className="flex-1 leading-snug">{opt.label}</span>
+                              {isSuggested && !isSelected && (
+                                <span className="text-[10px] font-mono font-bold text-orange-600 bg-orange-100/80 px-1.5 py-0.5 rounded shrink-0">
+                                  Relevant
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-xs sm:text-sm font-semibold text-slate-400 bg-white rounded-lg border border-dashed border-stone-200">
+                        No matching safety factors
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Panel Footer: Selected Count */}
+                  <div className="pt-2 border-t border-stone-200 flex items-center justify-between text-xs font-mono text-slate-500">
+                    <span>
+                      Showing {filteredChecklistOptions.length} of {currentCategoryChecklist.length} factors
+                    </span>
+                    <span className="font-bold text-slate-700">
+                      {selectedChecklist.length} selected
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

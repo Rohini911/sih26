@@ -103,7 +103,7 @@ SAFETY_OBSERVATION_PATTERNS = [
     (r'\b(heat\b|thermal|high temperature|excessive heat|heat stress|heatstroke|hot surface|burn hazard|fire|flame|sparks|burning|combustible|flammable|welding without screen|smoking in area|explouser|exposure|exposed to heat|hot work)\b', "Thermal / Heat Exposure"),
 
     # 4. PPE & Protective Equipment
-    (r'\b(helmet|hard hat|safety shoes|steel toe|goggles|safety glasses|face shield|earplugs|harness|lanyard|high-vis|vest|respirator|mask|without ppe|no ppe|not wearing|no helmet|no harness|no gloves|without gloves|gloves|eye protection)\b', "PPE / Protective Equipment"),
+    (r'\b(ppe|personal protective equipment|helmet|hard hat|safety shoes|steel toe|goggles|safety glasses|face shield|earplugs|harness|lanyard|high-vis|vest|respirator|mask|without ppe|no ppe|not wearing|no helmet|no harness|no gloves|without gloves|gloves|eye protection)\b', "PPE / Protective Equipment"),
 
     # 5. Housekeeping & Dropped Objects
     (r'\b(housekeeping|tools on floor|left on the floor|clutter|boxes stacked|stacked improperly|unstable stack|messy|trash on walkway|debris on floor|unsecured pallet|blocked walkway|untidy|box almost fell|box fell|dropped object|dropped tool|object fell)\b', "Housekeeping / Storage"),
@@ -146,7 +146,7 @@ SAFETY_OBSERVATION_PATTERNS = [
     (r'\b(loto|lockout|tagout|isolation|isolated|permit|ptw|work permit|authorization|de-energize)\b', "Energy Isolation & Work Authorization"),
 
     # 17. Barrier & Physical Protection Deficiencies
-    (r'\b(barricade|handrail|guardrail|barrier missing|barrier damaged|fence broken|gate open|warning sign missing|warning tape|without monitoring|without testing|not completed|not conducted|not performed|bypassed|omitted)\b', "Barrier & Physical Protection"),
+    (r'\b(barricade|handrail|guardrail|barrier missing|barrier damaged|fence broken|gate open|warning sign missing|warning tape|without monitoring|without testing|not completed|not conducted|not performed|bypassed|omitted|restricted area|exclusion zone|restricted zone|unauthorized area)\b', "Barrier & Physical Protection"),
 
     # 18. General Hazard & Unsafe Condition terms
     (r'\b(hazard|unsafe|danger\w*|risk|near miss|incident|accident|damage\w*|defect\w*|faulty|abnormal|unstable|loose\b|corroded|exposure|explouser)\b', "Operational Hazard")
