@@ -123,6 +123,7 @@ def find_duplicate_report(
 
     norm_target_loc = " ".join(report_data.location.strip().lower().split())
     norm_target_desc = " ".join(report_data.description.strip().lower().split())
+    norm_target_ctx = " ".join((report_data.additional_context or "").strip().lower().split())
 
     # Filter by indexed fields first: organization_id, report_date, report_type
     candidates = db.query(SafetyReport).filter(
@@ -134,7 +135,9 @@ def find_duplicate_report(
     for candidate in candidates:
         candidate_loc = " ".join((candidate.location or "").strip().lower().split())
         candidate_desc = " ".join((candidate.description or "").strip().lower().split())
-        if candidate_loc == norm_target_loc and candidate_desc == norm_target_desc:
+        candidate_ctx = " ".join((candidate.additional_context or "").strip().lower().split())
+        if candidate_loc == norm_target_loc and candidate_desc == norm_target_desc and candidate_ctx == norm_target_ctx:
             return candidate
 
     return None
+

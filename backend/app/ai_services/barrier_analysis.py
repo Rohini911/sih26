@@ -30,25 +30,48 @@ def analyze_barriers(text: str) -> Dict[str, str]:
 
     lower_text = text.lower()
 
-    # 1. Bypassed Barriers (Deliberate override or defeat of safety controls)
-    if re.search(r'\b(bypass\w*|overrid\w*|bridg\w*|defeat\w*|interlock\s+bypassed|safety\s+switch\s+defeated|tamper\w*)\b', lower_text):
+    # 1. Bypassed Barriers (Deliberate override, defeat, or intentional disregard of safety controls)
+    if re.search(r'\b(bypass\w*|overrid\w*|bridg\w*|defeat\w*|interlock\s+bypassed|safety\s+switch\s+defeated|tamper\w*|bypassing safety control)\b', lower_text):
         return {
             "status": "BARRIER_BYPASSED",
-            "description": "An engineered safety barrier, interlock, or safety switch was deliberately bypassed or overridden."
+            "description": "An engineered safety barrier, interlock, or safety control was deliberately bypassed or overridden."
         }
 
-    # 2. Missing Barriers (Omission, lack of required control)
-    if re.search(r'(gas testing\s+was\s+not\s+completed|without\s+atmospheric\s+monitoring|without\s+gas\s+test|not\s+completed\s+before\s+entering|\bwithout[\s_]harness|\bwithout[\s_]helmet|\bwithout[\s_]ppe|\bwithout[\s_]permit|\bno[\s_]permit|\bwithout[\s_]isolation|\bnot[\s_]locked[\s_]out|\bguard[\s_]missing|\bno guard|\bmissing guard|\bunbarricaded|\bno barricade|\bno lifeline|\bno toe[- ]board|\bno gas test)', lower_text):
-        desc = "A required safety barrier, personal protective control, or procedural authorization was omitted or not deployed."
-        if re.search(r'(gas test|atmospheric monitor|entering the vessel|entered the vessel)', lower_text):
-            desc = "Gas testing / atmospheric monitoring not completed before entering the vessel."
+    # 2. Missing Barriers (Omission, lack of required control, procedural non-compliance, ignored safety rules)
+    has_missing_barrier = re.search(
+        r'(\b(?:ignored|bypassed|without|no|not following|failed to follow)\s+(?:proper\s+)?(?:loto|lockout|tagout|isolation)\b'
+        r'|\blockout\s*/\s*tagout not followed|\bloto not followed|\bnot[\s_]locked[\s_]out'
+        r'|gas testing\s+was\s+not\s+completed|without\s+atmospheric\s+monitoring|without\s+gas\s+test|\bno[\s_]gas test'
+        r'|\bwithout[\s_]harness|\bwithout[\s_]helmet|\bwithout[\s_]ppe|\bno[\s_]ppe|\bwithout proper ppe'
+        r'|\bppe not used|\bincorrect ppe|\bppe issue|\bwithout[\s_]permit|\bno[\s_]permit'
+        r'|\bprocedure not followed|\bptw violation|\bpermit-to-work violation'
+        r'|\bguard[\s_]missing|\bno guard|\bmissing guard|\bmissing machine guard|\bremoving machine guard'
+        r'|\bunbarricaded|\bno barricade|\bmissing barricade|\bno lifeline|\bno toe[- ]board'
+        r'|\bentering restricted area|\bworking at height without protection)',
+        lower_text
+    )
+
+    if has_missing_barrier:
+        # Prioritize Critical Barrier Omissions: LOTO & Atmospheric Monitoring over generic PPE
+        if re.search(r'(loto|lockout|tagout|without isolation|not locked out|energy isolation)', lower_text):
+            desc = "Hazardous energy isolation (LOTO) barrier was not established or verified."
+        elif re.search(r'(gas test|atmospheric monitor|entering the vessel|entered the vessel|confined space)', lower_text):
+            desc = "Gas testing / atmospheric monitoring not completed before entering the vessel or confined space."
+        elif re.search(r'(guard[\s_]missing|no guard|missing guard|missing machine guard|removing machine guard|unbarricaded|no barricade|missing barricade)', lower_text):
+            desc = "Physical machine guard, containment barricade, or safety barrier defense was missing or removed."
+        elif re.search(r'(procedure not followed|ptw violation|permit-to-work violation|entering restricted area)', lower_text):
+            desc = "Mandatory safe operating procedure, exclusion barrier, or administrative work authorization was not followed."
+        elif re.search(r'(ppe not used|without[\s_]ppe|no[\s_]ppe|without proper ppe|without[\s_]helmet|without[\s_]harness|incorrect ppe|ppe issue)', lower_text):
+            desc = "Required personal protective equipment (PPE) barrier was omitted or not worn."
+        else:
+            desc = "A required safety barrier, personal protective control, or procedural authorization was omitted or not deployed."
+        
         return {
             "status": "BARRIER_MISSING",
             "description": desc
         }
 
     # 3. Failed Barriers (Physical failure, structural breakdown, rupture, snapping)
-    # Must have explicit failure verb applied to equipment/barrier
     if re.search(r'\b(barrier failed|snapped|parted|ruptured|burst|cable broke|hose detached|gasket blowout|brake failure|grating collapsed|weld gave way|shackle sheared)\b', lower_text):
         return {
             "status": "BARRIER_FAILED",
@@ -70,8 +93,6 @@ def analyze_barriers(text: str) -> Dict[str, str]:
         }
 
     # 6. Default: Insufficient Information
-    # CRITICAL: A simple hazard description (e.g. 'At front door it is very slippery')
-    # must NOT produce 'barrier failed'.
     return {
         "status": "BARRIER_INSUFFICIENT_INFO",
         "description": "No explicit barrier or control status was identified in the report information."

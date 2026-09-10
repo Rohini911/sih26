@@ -76,9 +76,9 @@ LSR_DEFINITIONS = {
         "name": "Line of Fire",
         "tagline": "Keep yourself and others out of the line of fire",
         "keywords": [
-            r'\bline of fire\b', r'\bstruck by\b', r'\bpinch point\b', r'\bdropped object\b',
-            r'\bwhipping hose\b', r'\bstored tension\b', r'\bpressure release\b',
-            r'\bstanding under\b', r'\bdrop zone\b'
+            r'\bline of fire\b', r'\bstruck by\b', r'\bstruck-by\b', r'\bpinch point\b', r'\bdropped object\b',
+            r'\bfalling object\b', r'\bwhipping hose\b', r'\bstored tension\b', r'\bpressure release\b',
+            r'\bstanding under\b', r'\bdrop zone\b', r'\bunsafe proximity\b'
         ],
         "mandatory_controls": [
             "Barricades and clear warning signs around dynamic drop zones",
@@ -110,7 +110,8 @@ LSR_DEFINITIONS = {
         "keywords": [
             r'\bbypass\w*', r'\boverrid\w*', r'\bbridg\w*', r'\bdefeat\w*',
             r'\binterlock\b', r'\bguard_missing\b', r'\besd bypass\b', r'\balarm defeat\b',
-            r'\btamper\w*'
+            r'\btamper\w*', r'\bbypassing safety control\b', r'\bremoving machine guard\b',
+            r'\bunsafe operation\b'
         ],
         "mandatory_controls": [
             "Formal Management of Change (MOC) and bypass certificate authorized",
@@ -125,7 +126,8 @@ LSR_DEFINITIONS = {
         "tagline": "Control flammables and ignition sources in hazardous zones",
         "keywords": [
             r'\bhot work\b', r'\bwelding\b', r'\bgrinding\b', r'\bsparks\b',
-            r'\bflammable\b', r'\bcombustible\b', r'\btorch cutting\b', r'\bfire watch\b'
+            r'\bflammable\b', r'\bcombustible\b', r'\btorch cutting\b', r'\bfire watch\b',
+            r'\bfire\b', r'\bexplosion\b', r'\bhydrocarbon leak\b', r'\bgas release\b'
         ],
         "mandatory_controls": [
             "Dedicated fire watch stationed with charged fire extinguisher for 30 min post-work",
@@ -155,7 +157,9 @@ LSR_DEFINITIONS = {
         "tagline": "Work with a valid work permit when required",
         "keywords": [
             r'\bwithout_permit\b', r'\bno_permit\b', r'\bpermit\b', r'\bptw\b',
-            r'\bunauthorized_action\b', r'\bjha\b', r'\btoolbox talk\b', r'\brisk assessment\b'
+            r'\bunauthorized_action\b', r'\bjha\b', r'\btoolbox talk\b', r'\brisk assessment\b',
+            r'\bentering restricted area\b', r'\brestricted area\b', r'\bprocedure not followed\b',
+            r'\bunauthorized operation\b', r'\boperating without authorization\b'
         ],
         "mandatory_controls": [
             "Valid, signed Permit-to-Work (PTW) displayed visibly at job site",

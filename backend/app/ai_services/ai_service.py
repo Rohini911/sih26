@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from .preprocessing import preprocess_text
 from .context_analyzer import get_category_context
 from .information_extraction import extract_safety_information
-from .hazard_detection import detect_hazard
+from .hazard_detection import detect_hazard, detect_all_hazards
 from .safety_signal_detection import detect_safety_signals
 from .energy_exposure_analysis import analyze_energy_and_exposure
 from .barrier_analysis import analyze_barriers
@@ -20,12 +20,12 @@ def analyze_safety_report(
     1. Preprocess text (preserving critical negations and masking PII)
     2. Category Context Loading
     3. Structured Information Extraction (entities & measurements)
-    4. Hazard Detection
+    4. Multi-Hazard Detection & Severity-Ranked Primary Selection
     5. Safety Signal Detection
     6. Energy Vector & Exposure Analysis (Gravity, Kinetic, Electrical, Chemical, Thermal, Pressure)
     7. Deterministic Barrier / Control Diagnostics
     8. IOGP Life-Saving Rules Mapping (all 9 rules)
-    9. Hybrid SIF Decision Engine (Rule Evidence + ML Probability + Contributing Features)
+    9. Hybrid SIF Decision Engine (Multi-Hazard Cumulative MAUT Score + Rule Evidence + ML Probability)
     10. Explainable Result Generation
     """
     full_text = description
@@ -41,7 +41,8 @@ def analyze_safety_report(
     # 3. Information Extraction
     extracted_info = extract_safety_information(cleaned_text, report_type)
 
-    # 4. Hazard Identification
+    # 4. Multi-Hazard Detection & Primary Hazard Identification
+    all_detected_hazards = detect_all_hazards(cleaned_text)
     identified_hazard = detect_hazard(cleaned_text)
 
     # 5. Safety Signal Detection
@@ -56,7 +57,7 @@ def analyze_safety_report(
     # 8. Life-Saving Rules Evaluation (All 9 IOGP Rules)
     lsr_match = map_life_saving_rules(cleaned_text)
 
-    # 9. Hybrid SIF Decision Engine (Rule Assessment + ML Probability + MAUT Risk Score)
+    # 9. Hybrid SIF Decision Engine (Rule Assessment + ML Probability + Cumulative Multi-Hazard MAUT Risk Score)
     sif_result = assess_sif_precursor(
         report_type=report_type,
         text=cleaned_text,
@@ -64,8 +65,17 @@ def analyze_safety_report(
         energy_source=energy_exposure.get("energy_source"),
         exposure=energy_exposure.get("exposure"),
         barrier_status=barrier_eval.get("status", "BARRIER_INSUFFICIENT_INFO"),
-        signals=safety_signals
+        signals=safety_signals,
+        all_hazards=all_detected_hazards,
+        all_energy_sources=energy_exposure.get("all_energy_sources", [])
     )
+
+    # Parse structured checklist safety factors from additional_context
+    safety_factors = []
+    if additional_context and str(additional_context).strip():
+        import re
+        factors_text = str(additional_context).replace("Safety Factors:", "").strip()
+        safety_factors = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
 
     # 10. Explainable Result Generation
     explanation = generate_explanation(
@@ -76,18 +86,22 @@ def analyze_safety_report(
         exposure=energy_exposure.get("exposure"),
         barrier_desc=barrier_eval.get("description", "Not identified"),
         potential_consequence=sif_result.get("potential_consequence"),
-        report_type=report_type
+        report_type=report_type,
+        safety_factors=safety_factors
     )
 
     # Structured Output
     return {
         "analysis_context": cat_context["description"],
         "identified_action": extracted_info.get("action"),
+        "safety_factors": safety_factors,
         "identified_condition": extracted_info.get("condition"),
         "identified_event": extracted_info.get("event"),
         "identified_hazard": identified_hazard,
+        "all_detected_hazards": all_detected_hazards,
         "safety_signals": safety_signals,
         "energy_source": energy_exposure.get("energy_source"),
+        "all_energy_sources": energy_exposure.get("all_energy_sources", []),
         "exposure": energy_exposure.get("exposure"),
         "barrier_information": barrier_eval.get("status"),
         "barrier_description": barrier_eval.get("description"),
