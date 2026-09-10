@@ -76,6 +76,12 @@ def analyze_safety_report(
         import re
         factors_text = str(additional_context).replace("Safety Factors:", "").strip()
         safety_factors = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
+    # Enrich extracted entities with pipeline detections
+    extracted_info["hazard"] = identified_hazard or "UNKNOWN"
+    extracted_info["worker_exposure"] = energy_exposure.get("exposure") or "UNKNOWN"
+    extracted_info["barrier"] = barrier_eval.get("description") or "UNKNOWN"
+    extracted_info["consequence"] = sif_result.get("potential_consequence") or "UNKNOWN"
+
 
     # 10. Explainable Result Generation
     explanation = generate_explanation(
