@@ -889,7 +889,7 @@ export default function SIFPrecursorsView({ onNavigate }) {
                     })}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#ff5934] hover:to-[#e64a27] text-white font-bold text-xs shadow-md shadow-orange-500/20 shrink-0 cursor-pointer flex items-center gap-1.5 transition-all self-start sm:self-auto"
                   >
-                    <span>Examine Weak Signal Dossier</span>
+                    <span>View Details</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
