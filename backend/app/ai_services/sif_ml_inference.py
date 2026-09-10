@@ -274,3 +274,37 @@ def predict_sif_potential(report_text: str) -> Dict[str, Any]:
             "model_version": MODEL_VERSION,
             "error": "Failed to complete prediction on the provided text.",
         }
+
+
+if __name__ == "__main__":
+    import json
+
+    print("==========================================================")
+    print("SIF ML INFERENCE SERVICE - TEST RUN")
+    print(f"Model Name: {MODEL_NAME} | Version: {MODEL_VERSION}")
+    print(f"Resolved Model Path: {resolve_model_path()}")
+    print("==========================================================")
+
+    test_samples = [
+        "High pressure gas release observed from pipeline flange with hissing sound near heater",
+        "At front door it is very slippery due to rain water on tile floor",
+        "Worker entered confined vessel without atmospheric gas testing or standby attendant",
+        "Minor scratch on toolbox handle in workshop housekeeping area"
+    ]
+
+    for i, sample in enumerate(test_samples, start=1):
+        print(f"\n--- Sample {i} ---")
+        print(f"Input Text: \"{sample}\"")
+        result = predict_sif_potential(sample)
+        print(f"Status: {result.get('status')}")
+        print(f"Predicted Class: {result.get('predicted_class')}")
+        print(f"Confidence: {result.get('confidence')}")
+        print(f"SIF Probability: {result.get('sif_probability')}")
+        print(f"Contributing Features: {result.get('contributing_features')}")
+        if result.get("error"):
+            print(f"Error: {result.get('error')}")
+
+    print("\n==========================================================")
+    print("ML INFERENCE EXECUTION COMPLETED SUCCESSFULLY")
+    print("==========================================================")
+
