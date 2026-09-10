@@ -26,9 +26,10 @@ import numpy as np
 
 # Ensure backend directory is in sys.path for joblib unpickling
 _current_file = Path(__file__).resolve()
-_backend_dir = _current_file.parents[1]  # backend
-_project_root = _current_file.parents[2]  # project root
-for _p in [str(_backend_dir), str(_project_root)]:
+_app_dir = _current_file.parents[1]        # backend/app
+_backend_dir = _current_file.parents[2]    # backend
+_project_root = _current_file.parents[3]   # project root
+for _p in [str(_backend_dir), str(_project_root), str(_app_dir)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
