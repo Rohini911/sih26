@@ -104,6 +104,17 @@ export default function DashboardView({ onNavigate }) {
   const [activeClassification, setActiveClassification] = useState(null);
   const [donutHoverIndex, setDonutHoverIndex] = useState(null);
   const [selectedSite, setSelectedSite] = useState('ALL');
+  const [currentTodayDate, setCurrentTodayDate] = useState(() => getTodayDateString());
+
+  // Automatically update daily date when the clock crosses midnight (after 12 AM)
+  useEffect(() => {
+    const checkDateInterval = setInterval(() => {
+      const nowStr = getTodayDateString();
+      setCurrentTodayDate(prev => (prev !== nowStr ? nowStr : prev));
+    }, 30000);
+
+    return () => clearInterval(checkDateInterval);
+  }, []);
 
   // Dynamic weak signals loaded solely from the backend
   const [weakSignalSearch, setWeakSignalSearch] = useState('');
@@ -404,10 +415,10 @@ export default function DashboardView({ onNavigate }) {
     { id: 'PLANT_04', name: 'Unit 4', location: 'Unit 4' }
   ];
 
-  // 4. Day-Wise Incident & SIF Precursor Trajectory Across the 4 Sites (Dynamically sourced from uploaded records starting from today)
+  // 4. Day-Wise Incident & SIF Precursor Trajectory Across the 4 Sites (Dynamically rolling daily through today)
   const siteDayWiseData = React.useMemo(() => {
     const reports = activeReports;
-    const today = getTodayDateString();
+    const today = currentTodayDate || getTodayDateString();
 
     const formatDate = (isoStr) => {
       try {
@@ -424,25 +435,64 @@ export default function DashboardView({ onNavigate }) {
     const getUnitCount = (list, unitNum) => {
       return list.filter(r => {
         const loc = `${r.location || ''} ${r.facility_unit || ''}`.toLowerCase();
-        return loc.includes(`unit ${unitNum}`) || loc.includes(`plant 0${unitNum}`) || loc.includes(`unit${unitNum}`);
+        return (
+          loc.includes(`unit ${unitNum}`) ||
+          loc.includes(`unit0${unitNum}`) ||
+          loc.includes(`unit-${unitNum}`) ||
+          loc.includes(`plant 0${unitNum}`) ||
+          loc.includes(`plant ${unitNum}`)
+        );
       }).length;
     };
 
-    const uniqueDates = [...new Set(reports.map(r => r.report_date || today))].sort();
-
     if (reports.length === 0) return [];
 
-    return uniqueDates.slice(-7).map(dStr => {
-      const dReports = reports.filter(r => (r.report_date || today) === dStr);
+    // Extract all valid report dates
+    const reportDates = reports
+      .map(r => (r.report_date || r.created_at || '').slice(0, 10))
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+    const sortedReportDates = [...new Set(reportDates)].sort();
+    const earliestDateStr = sortedReportDates.length > 0 ? sortedReportDates[0] : today;
+
+    // Generate consecutive rolling date list ending at today (or rolling window)
+    const consecutiveDates = [];
+    const startObj = new Date(earliestDateStr + 'T00:00:00');
+    const todayObj = new Date(today + 'T00:00:00');
+
+    if (!isNaN(startObj.getTime()) && !isNaN(todayObj.getTime()) && startObj <= todayObj) {
+      const curr = new Date(startObj);
+      while (curr <= todayObj) {
+        const y = curr.getFullYear();
+        const m = String(curr.getMonth() + 1).padStart(2, '0');
+        const d = String(curr.getDate()).padStart(2, '0');
+        consecutiveDates.push(`${y}-${m}-${d}`);
+        curr.setDate(curr.getDate() + 1);
+      }
+    } else {
+      consecutiveDates.push(today);
+    }
+
+    // Keep the rolling last 7 days ending at today
+    const displayDates = consecutiveDates.slice(-7);
+
+    return displayDates.map(dStr => {
+      const dReports = reports.filter(r => {
+        const rDate = (r.report_date || r.created_at || '').slice(0, 10);
+        return rDate === dStr;
+      });
+
       return {
         day: formatDate(dStr),
+        fullDate: dStr,
+        isToday: dStr === today,
         plant01: getUnitCount(dReports, 1),
         plant02: getUnitCount(dReports, 2),
         plant03: getUnitCount(dReports, 3),
         plant04: getUnitCount(dReports, 4),
       };
     });
-  }, [activeReports]);
+  }, [activeReports, currentTodayDate]);
 
   // Max count for LineChart YAxis
   const maxTrajectoryCount = React.useMemo(() => {
@@ -455,10 +505,18 @@ export default function DashboardView({ onNavigate }) {
   // Custom Dark Tooltip for Multi-Line Spline Trajectory Chart (4 Units)
   const CustomTrajectoryTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const isTodayPoint = payload[0]?.payload?.isToday;
       return (
         <div className="bg-[#0F172A] text-white border border-slate-700/80 p-3 rounded-xl shadow-2xl text-xs space-y-2 min-w-[230px]">
           <div className="font-bold text-slate-200 border-b border-slate-800 pb-1.5 flex items-center justify-between">
-            <span className="font-mono text-[#FF5A36] font-bold">{label}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[#FF5A36] font-bold">{label}</span>
+              {isTodayPoint && (
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-bold">
+                  TODAY
+                </span>
+              )}
+            </div>
             <span className="text-[10px] text-slate-400 font-mono">4 Monitored Units</span>
           </div>
           <div className="space-y-1.5">
@@ -903,12 +961,21 @@ export default function DashboardView({ onNavigate }) {
           {/* Chart Header */}
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-stone-100">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#FF5A36]">
                   SIF-WISE TRAJECTORY
                 </span>
                 <span className="text-slate-300">•</span>
                 <span className="text-xs text-slate-500 font-medium">4 Monitored Operating Units</span>
+                {siteDayWiseData.length > 0 && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 font-mono font-medium flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Rolling Daily (Through {siteDayWiseData[siteDayWiseData.length - 1]?.day})
+                    </span>
+                  </>
+                )}
               </div>
               <h3 className="text-lg sm:text-xl font-bold font-heading text-slate-900 tracking-tight mt-1">
                 Daily Incident &amp; SIF Velocity Across Units
