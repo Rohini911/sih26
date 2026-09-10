@@ -8,10 +8,14 @@ from ..models.user import User
 from ..schemas.safety_report import SafetyReportCreate, SafetyReportListItem
 
 def generate_report_reference(db: Session, org_id: str) -> str:
-    """Generates an enterprise-formatted report reference ID."""
-    count = db.query(SafetyReport).filter(SafetyReport.organization_id == org_id).count() + 1
-    org_suffix = org_id.upper().replace("-", "")
-    return f"REP-{org_suffix}-{count:04d}"
+    """Generates an enterprise-formatted report reference ID like REP-2026-000001."""
+    year = datetime.utcnow().strftime("%Y")
+    count = db.query(SafetyReport).count() + 1
+    candidate = f"REP-{year}-{count:06d}"
+    while db.query(SafetyReport).filter(SafetyReport.report_reference == candidate).first():
+        count += 1
+        candidate = f"REP-{year}-{count:06d}"
+    return candidate
 
 def create_report(db: Session, report_data: SafetyReportCreate, user: User) -> SafetyReport:
     """Creates a new safety report under the authenticated user's organization."""
@@ -19,8 +23,9 @@ def create_report(db: Session, report_data: SafetyReportCreate, user: User) -> S
     
     # Normalize report type string
     norm_type = report_data.report_type.upper().replace("-", "_").replace(" ", "_")
-    if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
+    if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS", "INCIDENT"]:
         norm_type = "UNSAFE_CONDITION"
+
 
     raw_desc = report_data.description.strip()
     try:

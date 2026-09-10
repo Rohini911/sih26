@@ -245,16 +245,35 @@ def extract_safety_information(text: str, report_type: str = "NEAR_MISS") -> Dic
     elif re.search(r'\b(loto applied|locked out|tagged out|isolated and verified|zero energy confirmed)\b', lower_text):
         isolation = "Positive LOTO Isolation Applied & Verified"
 
+    # 10. Worker involvement & injury extraction
+    worker_involvement = "UNKNOWN"
+
+    if re.search(r'\b(worker|technician|operator|crew|personnel|man|employee|contractor|helper|fitter|welder)\b', lower_text):
+        worker_involvement = "Personnel Identified in Operational Zone"
+
+    injury = "None Documented"
+    if re.search(r'\b(fracture|amputation|burn|cut|laceration|wound|pain|sprain|bruise|contusion|hurt|bleeding|injured|injury)\b', lower_text):
+        m = re.search(r'\b(fracture\w*|amputation\w*|burn\w*|cut\w*|laceration\w*|wound\w*|pain\w*|sprain\w*|bruise\w*|contusion\w*|hurt\w*|bleeding\w*|injur\w*)\b', lower_text)
+        injury = m.group(1).title() if m else "Injury Documented"
+
     return {
-        "unit": unit,
-        "location": unit or "Insufficient Information",
-        "equipment": equipment,
-        "activity": activity,
-        "action": action,
-        "condition": condition,
-        "event": event,
-        "ppe": ppe,
-        "permit": permit,
-        "isolation": isolation,
+        "unit": unit or "UNKNOWN",
+        "operating_unit": unit or "UNKNOWN",
+        "location": unit or "INSUFFICIENT_INFORMATION",
+        "equipment": equipment or "UNKNOWN",
+        "activity": activity or "UNKNOWN",
+        "action": action or "UNKNOWN",
+        "condition": condition or "UNKNOWN",
+        "event": event or "UNKNOWN",
+        "hazard": None,
+        "worker_involvement": worker_involvement,
+        "worker_exposure": None,
+        "barrier": None,
+        "injury": injury,
+        "consequence": None,
+        "ppe": ppe or "UNKNOWN",
+        "permit": permit or "UNKNOWN",
+        "isolation": isolation or "UNKNOWN",
         "measurements": measurements
     }
+
