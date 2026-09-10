@@ -66,6 +66,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [forgotPasswordNotice, setForgotPasswordNotice] = useState(false);
+  const [customAccounts, setCustomAccounts] = useState([]);
 
   // Clear messages & sync fields whenever modal opens
   useEffect(() => {
@@ -73,8 +74,31 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
       setErrorMessage('');
       setForgotPasswordNotice(false);
       setIsSuccess(false);
+
+      try {
+        const stored = localStorage.getItem('safetyai_custom_users');
+        if (stored) {
+          const list = JSON.parse(stored);
+          if (Array.isArray(list)) {
+            setCustomAccounts(list);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
   }, [isOpen]);
+
+  // Select custom provisioned user
+  const handleSelectCustomUser = (u) => {
+    const isCustomAdmin = u.role === 'ADMINISTRATOR' || u.is_admin;
+    setActiveRole(isCustomAdmin ? 'admin' : 'normal');
+    setOrgId(u.organization_id || 'id001');
+    setEmail(u.email);
+    setPassword(u.password || '');
+    setErrorMessage('');
+    setForgotPasswordNotice(false);
+  };
 
   // Switch role handler: autofills matching credentials
   const handleSelectRole = (roleKey) => {
@@ -321,6 +345,40 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
               <Info className="w-4 h-4 shrink-0" />
               <span>{PRESET_ACCOUNTS[activeRole].accessSummary}</span>
             </div>
+
+            {/* Custom Admin-Provisioned Accounts if any exist */}
+            {customAccounts.length > 0 && (
+              <div className="p-3 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Admin-Provisioned Accounts ({customAccounts.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Click to autofill</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {customAccounts.map((cu) => {
+                    const isSelected = email.toLowerCase() === cu.email.toLowerCase();
+                    return (
+                      <button
+                        key={cu.email}
+                        type="button"
+                        onClick={() => handleSelectCustomUser(cu)}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold shadow-xs'
+                            : 'bg-white dark:bg-[#18181b] border-slate-200 dark:border-[#27272e] text-slate-700 dark:text-slate-300 hover:border-amber-400'
+                        }`}
+                      >
+                        <UserCheck className="w-3 h-3" />
+                        <span>{cu.full_name || cu.email}</span>
+                        <span className="text-[10px] opacity-75 font-mono">({cu.role_name || (cu.role === 'ADMINISTRATOR' ? 'Admin' : 'User')})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error Message Alert */}

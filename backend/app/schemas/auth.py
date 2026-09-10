@@ -6,6 +6,14 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class CreateUserRequest(BaseModel):
+    organization_id: Optional[str] = "id001"
+    email: str
+    password: str
+    full_name: str
+    role: Optional[str] = "NORMAL_USER"
+    permissions: Optional[List[str]] = None
+
 class UserResponse(BaseModel):
     id: int
     organization_id: str

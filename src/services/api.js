@@ -39,6 +39,37 @@ export const api = {
       // Backend offline or network error - gracefully fall through to verified offline demo credentials
     }
 
+    // Check custom provisioned users in client storage first
+    try {
+      const customUsers = JSON.parse(localStorage.getItem('safetyai_custom_users') || '[]');
+      const matched = customUsers.find(u => 
+        u.email?.trim().toLowerCase() === cleanEmail && 
+        u.password === cleanPass
+      );
+      if (matched) {
+        const isCustomAdmin = matched.role === 'ADMINISTRATOR' || matched.is_admin || (matched.permissions && matched.permissions.includes('ALL'));
+        return {
+          access_token: `safetyai-token-custom-${matched.id || Date.now()}`,
+          token_type: 'bearer',
+          user: {
+            id: matched.id || 999,
+            organization_id: matched.organization_id || cleanOrg || 'id001',
+            email: matched.email,
+            full_name: matched.full_name,
+            role: matched.role || (isCustomAdmin ? 'ADMINISTRATOR' : 'NORMAL_USER'),
+            role_name: matched.role_name || (isCustomAdmin ? 'Administrator' : 'Normal User'),
+            is_admin: isCustomAdmin,
+            permissions: matched.permissions || (isCustomAdmin ? 
+              ['ALL', 'MANAGE_USERS', 'SETTINGS', 'REPORTS_EDIT', 'AUDIT', 'VIEW_DASHBOARD', 'RESET_DATA', 'UPDATE_PRECURSOR_STATUS'] : 
+              ['VIEW_DASHBOARD', 'SUBMIT_OBSERVATION', 'VIEW_REPORTS', 'VIEW_SIGNALS']),
+            organization_name: matched.organization_name || 'Oil India Limited – Operational Safety Unit'
+          }
+        };
+      }
+    } catch (e) {
+      console.error('Error checking custom users in fallback:', e);
+    }
+
     // Role detection in client-side fallback
     const isNormalUser = (
       cleanEmail === 'user1@gmail.com' ||
@@ -90,6 +121,102 @@ export const api = {
     }
 
     throw new Error('Invalid Organization ID, Email, or Password.');
+  },
+
+  // User Management
+  getUsers: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/users`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const users = await res.json();
+        return users;
+      }
+    } catch (err) {
+      console.warn('Backend users endpoint unavailable, loading local users:', err);
+    }
+    try {
+      const stored = localStorage.getItem('safetyai_custom_users');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  createUser: async (userData) => {
+    // 1. Try Backend API
+    let backendUser = null;
+    try {
+      const res = await fetch(`${API_BASE}/auth/users`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(userData)
+      });
+      if (res.ok) {
+        backendUser = await res.json();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to create user account on server.');
+      }
+    } catch (err) {
+      if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+        throw err;
+      }
+    }
+
+    // 2. Sync to localStorage for resilient dual-layer authentication
+    try {
+      const stored = localStorage.getItem('safetyai_custom_users');
+      const list = stored ? JSON.parse(stored) : [];
+      const isCustomAdmin = userData.role === 'ADMINISTRATOR' || (userData.permissions && userData.permissions.includes('ALL'));
+      const localEntry = {
+        id: backendUser ? backendUser.id : Date.now(),
+        organization_id: userData.organization_id || 'id001',
+        email: userData.email.trim().toLowerCase(),
+        password: userData.password, // kept locally for offline authentication
+        full_name: userData.full_name.trim(),
+        role: userData.role || (isCustomAdmin ? 'ADMINISTRATOR' : 'NORMAL_USER'),
+        role_name: backendUser?.role_name || (isCustomAdmin ? 'Administrator' : 'Normal User'),
+        is_admin: isCustomAdmin,
+        permissions: userData.permissions || (isCustomAdmin ? 
+          ['ALL', 'MANAGE_USERS', 'SETTINGS', 'REPORTS_EDIT', 'AUDIT', 'VIEW_DASHBOARD', 'RESET_DATA', 'UPDATE_PRECURSOR_STATUS'] : 
+          ['VIEW_DASHBOARD', 'SUBMIT_OBSERVATION', 'VIEW_REPORTS', 'VIEW_SIGNALS']),
+        created_at: new Date().toISOString()
+      };
+
+      const filtered = list.filter(u => u.email.toLowerCase() !== localEntry.email);
+      filtered.push(localEntry);
+      localStorage.setItem('safetyai_custom_users', JSON.stringify(filtered));
+      return backendUser || localEntry;
+    } catch (e) {
+      console.error('Failed to sync user to local storage:', e);
+      return backendUser;
+    }
+  },
+
+  deleteUser: async (userId, userEmail) => {
+    try {
+      await fetch(`${API_BASE}/auth/users/${userId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+    } catch (err) {
+      console.warn('Backend delete user unavailable:', err);
+    }
+
+    // Also remove from localStorage
+    try {
+      const stored = localStorage.getItem('safetyai_custom_users');
+      if (stored) {
+        const list = JSON.parse(stored);
+        const updated = list.filter(u => u.id !== userId && (!userEmail || u.email.toLowerCase() !== userEmail.toLowerCase()));
+        localStorage.setItem('safetyai_custom_users', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error('Failed to remove user from local storage:', e);
+    }
+    return true;
   },
 
   getProfile: async () => {
