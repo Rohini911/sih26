@@ -22,14 +22,23 @@ def create_report(db: Session, report_data: SafetyReportCreate, user: User) -> S
     if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
         norm_type = "UNSAFE_CONDITION"
 
+    raw_desc = report_data.description.strip()
+    try:
+        from ..ai_services.preprocessing import normalize_safety_spelling
+        norm_desc = normalize_safety_spelling(raw_desc)
+    except Exception:
+        norm_desc = raw_desc
+
     db_report = SafetyReport(
         report_reference=ref_id,
         organization_id=user.organization_id,
         user_id=user.id,
         report_type=norm_type,
-        description=report_data.description.strip(),
+        original_description=raw_desc,
+        normalized_description=norm_desc,
+        description=raw_desc,
         location=report_data.location.strip(),
-        report_date=report_data.report_date.strip(),
+        report_date=report_data.report_date.strip() if report_data.report_date and report_data.report_date.strip() else datetime.utcnow().strftime("%Y-%m-%d"),
         additional_context=report_data.additional_context.strip() if report_data.additional_context else None,
         analysis_status=AnalysisStatusEnum.PENDING.value
     )
@@ -78,6 +87,8 @@ def get_organization_reports(
             organization_id=r.organization_id,
             report_type=r.report_type,
             description=r.description,
+            original_description=r.original_description or r.description,
+            normalized_description=r.normalized_description or r.description,
             location=r.location,
             report_date=r.report_date,
             additional_context=r.additional_context,
@@ -88,9 +99,42 @@ def get_organization_reports(
         ))
     return result
 
+
 def get_report_by_id(db: Session, report_id: int, org_id: str) -> Optional[SafetyReport]:
     """Gets safety report ensuring strict organization ownership."""
     return db.query(SafetyReport).filter(
         SafetyReport.id == report_id,
         SafetyReport.organization_id == org_id
     ).first()
+
+def find_duplicate_report(
+    db: Session,
+    org_id: str,
+    report_data: SafetyReportCreate
+) -> Optional[SafetyReport]:
+    """
+    Finds an existing report in the database matching the composite duplicate key:
+    organization_id + report_date + normalized location + normalized report_type + normalized description.
+    """
+    clean_date = report_data.report_date.strip()
+    norm_type = report_data.report_type.upper().replace("-", "_").replace(" ", "_")
+    if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
+        norm_type = "UNSAFE_CONDITION"
+
+    norm_target_loc = " ".join(report_data.location.strip().lower().split())
+    norm_target_desc = " ".join(report_data.description.strip().lower().split())
+
+    # Filter by indexed fields first: organization_id, report_date, report_type
+    candidates = db.query(SafetyReport).filter(
+        SafetyReport.organization_id == org_id,
+        SafetyReport.report_date == clean_date,
+        SafetyReport.report_type == norm_type
+    ).all()
+
+    for candidate in candidates:
+        candidate_loc = " ".join((candidate.location or "").strip().lower().split())
+        candidate_desc = " ".join((candidate.description or "").strip().lower().split())
+        if candidate_loc == norm_target_loc and candidate_desc == norm_target_desc:
+            return candidate
+
+    return None

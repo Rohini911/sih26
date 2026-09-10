@@ -8,6 +8,7 @@ from .energy_exposure_analysis import analyze_energy_and_exposure
 from .barrier_analysis import analyze_barriers
 from .sif_assessment import assess_sif_precursor
 from .explanation_generator import generate_explanation
+from .life_saving_rules import map_life_saving_rules
 
 def analyze_safety_report(
     report_type: str,
@@ -15,25 +16,24 @@ def analyze_safety_report(
     additional_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Executes the modular 10-step AI/NLP Safety Intelligence Pipeline:
-    1. Preprocess text (preserving negations)
+    Executes the modular AI/NLP Safety Intelligence Pipeline:
+    1. Preprocess text (preserving critical negations and masking PII)
     2. Category Context Loading
-    3. Structured Information Extraction
+    3. Structured Information Extraction (entities & measurements)
     4. Hazard Detection
     5. Safety Signal Detection
-    6. Energy & Exposure Analysis
-    7. Barrier / Control Analysis
-    8. Category-Aware Reasoning
-    9. SIF Precursor Assessment (YES, NO, INSUFFICIENT_INFORMATION)
+    6. Energy Vector & Exposure Analysis (Gravity, Kinetic, Electrical, Chemical, Thermal, Pressure)
+    7. Deterministic Barrier / Control Diagnostics
+    8. IOGP Life-Saving Rules Mapping (all 9 rules)
+    9. Hybrid SIF Decision Engine (Rule Evidence + ML Probability + Contributing Features)
     10. Explainable Result Generation
     """
-    # Combine description and additional context for complete textual context
     full_text = description
     if additional_context and additional_context.strip():
         full_text += f". Additional Context: {additional_context.strip()}"
     
     # 1. Text Preprocessing
-    cleaned_text = preprocess_text(full_text)
+    cleaned_text = preprocess_text(full_text, mask_personal_data=True)
 
     # 2. Category Context
     cat_context = get_category_context(report_type)
@@ -53,14 +53,17 @@ def analyze_safety_report(
     # 7. Barrier / Control Analysis
     barrier_eval = analyze_barriers(cleaned_text)
 
-    # 8 & 9. SIF Precursor Assessment & Consequence determination
+    # 8. Life-Saving Rules Evaluation (All 9 IOGP Rules)
+    lsr_match = map_life_saving_rules(cleaned_text)
+
+    # 9. Hybrid SIF Decision Engine (Rule Assessment + ML Probability + MAUT Risk Score)
     sif_result = assess_sif_precursor(
         report_type=report_type,
         text=cleaned_text,
         hazard=identified_hazard,
         energy_source=energy_exposure.get("energy_source"),
         exposure=energy_exposure.get("exposure"),
-        barrier_status=barrier_eval.get("status", "BARRIER_UNKNOWN"),
+        barrier_status=barrier_eval.get("status", "BARRIER_INSUFFICIENT_INFO"),
         signals=safety_signals
     )
 
@@ -76,7 +79,7 @@ def analyze_safety_report(
         report_type=report_type
     )
 
-    # Structured Output (fields allow None when not identified)
+    # Structured Output
     return {
         "analysis_context": cat_context["description"],
         "identified_action": extracted_info.get("action"),
@@ -87,7 +90,17 @@ def analyze_safety_report(
         "energy_source": energy_exposure.get("energy_source"),
         "exposure": energy_exposure.get("exposure"),
         "barrier_information": barrier_eval.get("status"),
+        "barrier_description": barrier_eval.get("description"),
         "potential_consequence": sif_result.get("potential_consequence"),
         "sif_precursor_assessment": sif_result["assessment"],
+        "ai_classification": sif_result.get("ai_classification", "Non-SIF-potential"),
+        "final_ai_decision": sif_result.get("final_ai_decision", "NON-SIF OBSERVATION"),
+        "rule_based_assessment": sif_result.get("rule_based_assessment", "NO"),
+        "ml_probability": sif_result.get("ml_probability", 0.0),
+        "ai_sif_score": sif_result.get("ai_sif_score", 25),
+        "ai_confidence": sif_result.get("ai_confidence", 85.0),
+        "contributing_features": sif_result.get("contributing_features", []),
+        "life_saving_rule": lsr_match,
+        "extracted_entities": extracted_info,
         "explanation": explanation
     }

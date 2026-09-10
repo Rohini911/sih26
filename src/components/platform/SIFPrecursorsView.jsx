@@ -61,99 +61,8 @@ import {
 // Storage key for admin precursor modifications
 const ADMIN_PRECURSORS_STORAGE_KEY = 'safetyai_admin_precursors_data';
 
-// Default baseline precursors with complete fields
-const DEFAULT_PRECURSORS = [
-  {
-    id: 1,
-    precursor_id: 'PREC-01',
-    title: 'Repeated Unbarricaded Rigging & Suspended Load Exposures',
-    category: 'Lifting Operations & Rigging',
-    unit: 'Unit 2',
-    isSIF: true,
-    risk_score: 94,
-    status: 'Under Review',
-    short_description: 'Crane hoisting suspended 2-ton casing pipe over active drill crew walkway without physical exclusion barricades.',
-    why_identified: 'AI/NLP pattern detected 3 separate reports across shifts where crane hoisting was conducted without drop-zone barricades.',
-    detection_date: '2026-08-28',
-    engineering_mandate: 'Immediate physical exclusion barriers and dual-rigger radio signaling required before any crane load lift.',
-    reviewer_notes: 'Safety audit verified on site inspection. Stop-work barrier enforced.',
-    reviewed_at: null,
-    related_weak_signals_count: 2,
-    related_reports_count: 3
-  },
-  {
-    id: 2,
-    precursor_id: 'PREC-02',
-    title: 'Compromised Electrical Zero-Energy Isolation & LOTO Bypass',
-    category: 'Hazardous Energy & LOTO',
-    unit: 'Unit 1',
-    isSIF: true,
-    risk_score: 91,
-    status: 'Complete',
-    short_description: 'Technician observed entering 11kV electrical switchgear room without LOTO energy isolation or live-dead-live testing.',
-    why_identified: 'AI/NLP identified recurring reports of conveyor jam clearing without padlocking main disconnect switches.',
-    detection_date: '2026-08-30',
-    engineering_mandate: 'Enforce mandatory two-person zero-voltage probe verification and custody-transfer padlock lockbox before panel entry.',
-    reviewer_notes: 'Confirmed and resolved by Chief HSE Auditor. Physical lockout stations audited.',
-    reviewed_at: '2026-09-07T16:36:27',
-    related_weak_signals_count: 1,
-    related_reports_count: 3
-  },
-  {
-    id: 3,
-    precursor_id: 'PREC-03',
-    title: 'Vessel Entry Without Multi-Gas Sniffer Calibration or Standby Attendant',
-    category: 'Confined Space Entry',
-    unit: 'Unit 3',
-    isSIF: true,
-    risk_score: 88,
-    status: 'Incomplete',
-    short_description: 'Contractors entered nitrogen-purged distillation column without continuous multi-gas sniffer calibration or certified hole watch.',
-    why_identified: 'Repeated non-conformance where confined space permit signoffs lacked atmospheric oxygen and LEL telemetry logs.',
-    detection_date: '2026-08-29',
-    engineering_mandate: 'Revoke vessel entry permits until automated 4-gas continuous telemetry sniffer and dedicated hole watch are stationed.',
-    reviewer_notes: 'Immediate action required: contractor supervisor failed to provide gas test logs.',
-    reviewed_at: null,
-    related_weak_signals_count: 2,
-    related_reports_count: 3
-  },
-  {
-    id: 4,
-    precursor_id: 'PREC-04',
-    title: 'Scaffold Leading Edge Guardrail Gap & 100% Tie-Off Deficiency',
-    category: 'Work at Height',
-    unit: 'Unit 4',
-    isSIF: false,
-    risk_score: 62,
-    status: 'Complete',
-    short_description: 'Scaffolding decking at 5-meter elevation missing intermediate guardrails and toe boards near pipe rack.',
-    why_identified: 'Workers observed disconnecting dual lanyards while transitioning across platform spans.',
-    detection_date: '2026-08-25',
-    engineering_mandate: 'Install certified perimeter debris netting, complete toe-board retrofits, and mandate 100% continuous tie-off.',
-    reviewer_notes: 'Scaffold tag red-tagged and replaced with certified green tag following toe-board installation.',
-    reviewed_at: '2026-09-07T14:20:10',
-    related_weak_signals_count: 1,
-    related_reports_count: 2
-  },
-  {
-    id: 5,
-    precursor_id: 'PREC-05',
-    title: 'Hydraulic Stored Pressure Line Disconnection Without Bleed Verification',
-    category: 'Pressure & Hazardous Energy',
-    unit: 'Unit 2',
-    isSIF: true,
-    risk_score: 84,
-    status: 'Under Review',
-    short_description: 'Hydraulic accumulator line loosened while gauge still showed 35 bar residual trapped pressure.',
-    why_identified: 'Technicians attempted coupling disconnection relying solely on pump power cut without depressurizing accumulator tank.',
-    detection_date: '2026-09-01',
-    engineering_mandate: 'Install mechanical depressurization bleed-off valves with physical pressure indicator dials before flange break.',
-    reviewer_notes: 'Awaiting review from Maintenance Mechanical Lead for Unit 2.',
-    reviewed_at: null,
-    related_weak_signals_count: 1,
-    related_reports_count: 3
-  }
-];
+// Default baseline precursors (clean slate: zero operational records)
+const DEFAULT_PRECURSORS = [];
 
 export default function SIFPrecursorsView({ onNavigate }) {
   const { user } = useAuth();
@@ -464,10 +373,10 @@ export default function SIFPrecursorsView({ onNavigate }) {
       return;
     }
     localStorage.removeItem(ADMIN_PRECURSORS_STORAGE_KEY);
-    updatePrecursorsList(DEFAULT_PRECURSORS);
+    updatePrecursorsList([]);
     setToastMessage({
       type: 'success',
-      text: 'Precursor dataset reset to verified enterprise baseline.'
+      text: 'Precursor dataset reset. Zero operational records in state.'
     });
     setTimeout(() => setToastMessage(null), 3000);
   };

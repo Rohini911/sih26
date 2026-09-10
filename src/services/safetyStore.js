@@ -6,7 +6,7 @@ const STORAGE_PRECURSORS_KEY = 'safetyai_admin_precursors_data';
 const STORAGE_WIPED_KEY = 'safetyai_data_wiped_fresh';
 const STORAGE_WEAK_SIGNALS_KEY = 'safetyai_weak_signals_data';
 const STORAGE_RESET_VERSION_KEY = 'safetyai_reset_version';
-const CURRENT_RESET_VERSION = 'v9_clean_slate_all_data_removed';
+const CURRENT_RESET_VERSION = 'v12_zero_operational_data_sync';
 
 // Perform clean slate reset on load if not on current reset version
 try {
@@ -60,169 +60,9 @@ export function extractUnitKey(val) {
   return str.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// 20 High-Quality Verified Industrial Safety Records Dated From Today
-export const DEFAULT_20_SAMPLE_RECORDS = [
-  {
-    Reference: 'REP-ID001-0001',
-    Date: '',
-    Site: 'Unit 1 - Gas Processing Plant',
-    'Report Type': 'Near Miss',
-    Description: 'High-pressure gas pipeline flange suffered severe leakage with loud hissing near switchboard.',
-    Hazard: 'Flammable Gas Leakage & Explosion Hazard'
-  },
-  {
-    Reference: 'REP-ID001-0002',
-    Date: '',
-    Site: 'Unit 2 - Primary Substation 415V',
-    'Report Type': 'Near Miss',
-    Description: 'Electrical fire erupted inside 415V switchboard panel due to overloaded circuit breaker.',
-    Hazard: 'Electrical Switchboard Fire & Arc Flash'
-  },
-  {
-    Reference: 'REP-ID001-0003',
-    Date: '',
-    Site: 'Unit 3 - LPG Storage & Bottling',
-    'Report Type': 'Unsafe Condition',
-    Description: 'Pressurized LPG cylinder valve found leaking propane gas with strong odor near workshop heater.',
-    Hazard: 'Flammable LPG Gas Accumulation'
-  },
-  {
-    Reference: 'REP-ID001-0004',
-    Date: '',
-    Site: 'Unit 4 - Mechanical Fabrication Bay',
-    'Report Type': 'Unsafe Act',
-    Description: 'Angle grinding sparks near open solvent drum ignited oily rags causing an immediate flash fire.',
-    Hazard: 'Hot Work Welding Sparks Floor Fire'
-  },
-  {
-    Reference: 'REP-ID001-0005',
-    Date: '',
-    Site: 'Unit 5 - Drilling Rig Floor Bay A',
-    'Report Type': 'Near Miss',
-    Description: 'Crane hoisting 2.5-ton drill pipe casing; synthetic sling tore dropping casing 4m to floor.',
-    Hazard: 'Lifting & Suspended Load Drop'
-  },
-  {
-    Reference: 'REP-ID001-0006',
-    Date: '',
-    Site: 'Unit 6 - Motor Control Center 11kV',
-    'Report Type': 'Unsafe Act',
-    Description: 'Electrician opened energized 11kV motor control cubicle without applying lockout padlock.',
-    Hazard: 'Electrical Energy & LOTO Bypass'
-  },
-  {
-    Reference: 'REP-ID001-0007',
-    Date: '',
-    Site: 'Unit 7 - Distillation Column Area',
-    'Report Type': 'Unsafe Condition',
-    Description: 'Scaffolding plank missing at 9m elevation on distillation column without harness anchor point.',
-    Hazard: 'Working at Height & Fall Hazard'
-  },
-  {
-    Reference: 'REP-ID001-0008',
-    Date: '',
-    Site: 'Unit 8 - Hydrocarbon Tank Farm',
-    'Report Type': 'Near Miss',
-    Description: 'Entrant entered hydrocarbon tank before atmospheric gas test complete; H2S monitor alarmed.',
-    Hazard: 'Confined Space Atmospheric Asphyxiation'
-  },
-  {
-    Reference: 'REP-ID001-0009',
-    Date: '',
-    Site: 'Unit 9 - Hydraulic Pump House',
-    'Report Type': 'Unsafe Condition',
-    Description: 'High-pressure hydraulic line pulsing violently with 40-bar gauge vibrating loose on main pump.',
-    Hazard: 'Pressurized Fluid & Hydraulic Line Defect'
-  },
-  {
-    Reference: 'REP-ID001-0010',
-    Date: '',
-    Site: 'Unit 10 - Central Maintenance Workshop',
-    'Report Type': 'Unsafe Act',
-    Description: 'Cutting torch operated without flashback arrestor on oxygen cylinder line near maintenance bay.',
-    Hazard: 'Hot Work Thermal & Flashback Risk'
-  },
-  {
-    Reference: 'REP-ID001-0011',
-    Date: '',
-    Site: 'Unit 11 - Chemical Injection Bund',
-    'Report Type': 'Near Miss',
-    Description: 'Acid injection pump mechanical seal failed spraying hazardous liquid inside containment bund.',
-    Hazard: 'Chemical Exposure & Toxic Fluid Release'
-  },
-  {
-    Reference: 'REP-ID001-0012',
-    Date: '',
-    Site: 'Unit 12 - Pump Deck Mezzanine',
-    'Report Type': 'Unsafe Condition',
-    Description: 'Heavy steel walkway grating displaced leaving 1-meter open hole above pump deck.',
-    Hazard: 'Structural Integrity & Grating Defect'
-  },
-  {
-    Reference: 'REP-ID001-0013',
-    Date: '',
-    Site: 'Unit 13 - Rotary Machine Shop',
-    'Report Type': 'Unsafe Act',
-    Description: 'Machinist operating rotary pipe beveler without impact safety goggles or protective shield.',
-    Hazard: 'Personal Protective Equipment & Eye Hazard'
-  },
-  {
-    Reference: 'REP-ID001-0014',
-    Date: '',
-    Site: 'Unit 14 - Heavy Crane Lift Yard',
-    'Report Type': 'Near Miss',
-    Description: 'Crane hoist wire rope showing broken outer strands during pre-lift inspection of exchanger.',
-    Hazard: 'Lifting Equipment Rigging Defect'
-  },
-  {
-    Reference: 'REP-ID001-0015',
-    Date: '',
-    Site: 'Unit 15 - Fuel Tanker Gantry Berth',
-    'Report Type': 'Unsafe Condition',
-    Description: 'Fuel transfer tanker loading arm earth bonding clamp detached during hydrocarbon offloading.',
-    Hazard: 'Electrical Grounding & Static Discharge'
-  },
-  {
-    Reference: 'REP-ID001-0016',
-    Date: '',
-    Site: 'Unit 16 - Hazardous Chemical Store',
-    'Report Type': 'Unsafe Act',
-    Description: 'Unlabeled solvent containers stored on unbunded concrete apron with visible liquid residue.',
-    Hazard: 'Hazardous Material Handling & Containment'
-  },
-  {
-    Reference: 'REP-ID001-0017',
-    Date: '',
-    Site: 'Unit 17 - High-Pressure Boiler Catwalk',
-    'Report Type': 'Near Miss',
-    Description: 'High-pressure boiler steam bypass valve packing blown out discharging 180°C steam cloud.',
-    Hazard: 'Thermal Energy & Steam Blowout'
-  },
-  {
-    Reference: 'REP-ID001-0018',
-    Date: '',
-    Site: 'Unit 18 - Deluge Shower Safety Station',
-    'Report Type': 'Unsafe Condition',
-    Description: 'Emergency eye-wash station and deluge shower access obstructed by stacked scaffold materials.',
-    Hazard: 'Emergency Response Equipment Obstruction'
-  },
-  {
-    Reference: 'REP-ID001-0019',
-    Date: '',
-    Site: 'Unit 19 - Elevated Cable Tray Bay',
-    'Report Type': 'Unsafe Act',
-    Description: 'Contractor standing on top rung of unsecured extension ladder reaching for elevated cable tray.',
-    Hazard: 'Working at Height & Ladder Safety'
-  },
-  {
-    Reference: 'REP-ID001-0020',
-    Date: '',
-    Site: 'Unit 20 - Conveyor Pulley Drive Line',
-    'Report Type': 'Near Miss',
-    Description: 'Conveyor belt drive pulley guard removed while drive motor running during shift handover.',
-    Hazard: 'Rotating Machinery & Mechanical Pinch Point'
-  }
-];
+// Zero predefined operational records
+export const DEFAULT_20_SAMPLE_RECORDS = [];
+
 
 // Check if a report contains severe energy or SIF markers (deterministic, no random variance)
 export function evaluateSIFPrecursor(text, hazard, reportType) {
@@ -287,76 +127,6 @@ export function evaluateSIFPrecursor(text, hazard, reportType) {
   };
 }
 
-// Build initial 20 reports dated starting from today
-function buildInitialDefaultDataset() {
-  const todayStr = getTodayDateString();
-  const reports = [];
-  const precursors = [];
-
-  DEFAULT_20_SAMPLE_RECORDS.forEach((row, idx) => {
-    const ref = row.Reference;
-    const reportDate = todayStr;
-    const site = row.Site;
-    const reportType = row['Report Type'];
-    const description = row.Description;
-    const hazard = row.Hazard;
-
-    const evalResult = evaluateSIFPrecursor(description, hazard, reportType);
-    const isSIF = evalResult.isSIF;
-    const riskScore = evalResult.riskScore;
-
-    const reportItem = {
-      id: 1000 + idx,
-      report_reference: ref,
-      report_type: reportType,
-      description: description,
-      location: site,
-      facility_unit: site,
-      report_date: reportDate,
-      risk_level: isSIF ? 'Critical' : 'Low',
-      sif_precursor_assessment: isSIF ? 'YES' : 'NO',
-      ai_score: riskScore,
-      status: 'Under Review',
-      identified_hazard: hazard,
-      energy_source: isSIF ? 'High Energy Vector' : 'Low Mechanical Kinetic',
-      barrier_status: isSIF ? 'CRITICAL BARRIER FAILED' : 'BARRIER ADEQUATE',
-      recommended_action: isSIF ? 'Immediate physical barrier enforcement and audit.' : 'Routine housekeeping and shift review.',
-      created_at: new Date().toISOString()
-    };
-    reports.push(reportItem);
-
-    if (isSIF) {
-      precursors.push({
-        id: reportItem.id,
-        precursor_id: `PREC-${todayStr.slice(5).replace('-', '')}-${String(idx + 1).padStart(2, '0')}`,
-        title: hazard || description.slice(0, 70),
-        category: getCategoryFromHazard(hazard),
-        unit: site,
-        isSIF: true,
-        risk_score: riskScore,
-        status: 'Under Review',
-        short_description: description,
-        why_identified: `AI energy classification detected critical precursor potential in "${hazard}".`,
-        detection_date: reportDate,
-        engineering_mandate: `Immediate verification of critical barrier controls across ${site}.`,
-        reviewer_notes: 'Validated safety register. Awaiting safety audit verification.',
-        reviewed_at: null,
-        related_weak_signals_count: 2,
-        related_reports_count: 2
-      });
-    }
-  });
-
-  try {
-    localStorage.setItem(STORAGE_REPORTS_KEY, JSON.stringify(reports));
-    localStorage.setItem(STORAGE_PRECURSORS_KEY, JSON.stringify(precursors));
-    localStorage.removeItem(STORAGE_WIPED_KEY);
-  } catch (e) {
-    console.error('Failed to persist initial safety dataset:', e);
-  }
-
-  return { reports, precursors };
-}
 
 // Get state from localStorage - stable and persistent without dynamic data resets
 export function getStoreState() {
@@ -518,6 +288,94 @@ export async function ingestBatchReports(rawRecords, replaceExisting = true) {
     }
   } catch (err) {
     console.warn('Backend batch sync deferred:', err);
+  }
+
+  notifySubscribers();
+  return {
+    reportsCount: finalReports.length,
+    precursorsCount: finalPrecursors.length
+  };
+}
+
+// Synchronize verified reports returned by FastAPI backend into reactive safetyStore
+export function syncBackendReportsToStore(backendReports, originalRows = [], replaceExisting = false) {
+  const todayStr = getTodayDateString();
+  const existingReports = replaceExisting ? [] : (getStoreState().reports || []);
+  const existingPrecursors = replaceExisting ? [] : (getStoreState().precursors || []);
+
+  const newReports = [];
+  const newPrecursors = [];
+
+  backendReports.forEach((r, idx) => {
+    const orig = originalRows[idx] || {};
+    const isSIF = r.sif_precursor_assessment === 'YES';
+    const hazard = r.identified_hazard || orig.Hazard || 'Operational Safety Observation';
+
+    const reportItem = {
+      id: r.id,
+      report_reference: r.report_reference,
+      report_type: r.report_type,
+      description: r.description,
+      location: r.location,
+      facility_unit: r.location,
+      report_date: r.report_date,
+      risk_level: isSIF ? 'Critical' : 'Low',
+      sif_precursor_assessment: isSIF ? 'YES' : 'NO',
+      ai_score: isSIF ? 94 : 45,
+      status: 'Under Review',
+      identified_hazard: hazard,
+      energy_source: isSIF ? 'High Energy Vector' : 'Low Mechanical Kinetic',
+      barrier_status: isSIF ? 'CRITICAL BARRIER FAILED' : 'BARRIER ADEQUATE',
+      recommended_action: isSIF ? 'Immediate physical barrier enforcement and audit.' : 'Routine housekeeping and shift review.',
+      created_at: r.created_at || new Date().toISOString()
+    };
+    newReports.push(reportItem);
+
+    if (isSIF) {
+      newPrecursors.push({
+        id: r.id,
+        precursor_id: `PREC-${todayStr.slice(5).replace('-', '')}-${String(idx + 1).padStart(2, '0')}`,
+        title: hazard || r.description.slice(0, 70),
+        category: getCategoryFromHazard(hazard),
+        unit: r.location,
+        isSIF: true,
+        risk_score: 94,
+        status: 'Under Review',
+        short_description: r.description,
+        why_identified: `AI energy classification detected critical precursor potential in "${hazard}".`,
+        detection_date: r.report_date,
+        engineering_mandate: `Immediate verification of critical barrier controls across ${r.location}.`,
+        reviewer_notes: 'Uploaded via Bulk Ingestion. Awaiting safety audit review.',
+        reviewed_at: null,
+        related_weak_signals_count: 1,
+        related_reports_count: 1
+      });
+    }
+  });
+
+  // Deduplicate against existing reports: prefer newly added reports, preserve earlier ones
+  const newReportIds = new Set(newReports.map(r => r.id).filter(Boolean));
+  const newReportRefs = new Set(newReports.map(r => r.report_reference).filter(Boolean));
+  const remainingExistingReports = existingReports.filter(
+    r => (!r.id || !newReportIds.has(r.id)) && (!r.report_reference || !newReportRefs.has(r.report_reference))
+  );
+
+  const finalReports = [...newReports, ...remainingExistingReports];
+
+  const newPrecursorIds = new Set(newPrecursors.map(p => p.id).filter(Boolean));
+  const newPrecursorRefs = new Set(newPrecursors.map(p => p.precursor_id).filter(Boolean));
+  const remainingExistingPrecursors = existingPrecursors.filter(
+    p => (!p.id || !newPrecursorIds.has(p.id)) && (!p.precursor_id || !newPrecursorRefs.has(p.precursor_id))
+  );
+
+  const finalPrecursors = [...newPrecursors, ...remainingExistingPrecursors];
+
+  try {
+    localStorage.setItem(STORAGE_REPORTS_KEY, JSON.stringify(finalReports));
+    localStorage.setItem(STORAGE_PRECURSORS_KEY, JSON.stringify(finalPrecursors));
+    localStorage.removeItem(STORAGE_WIPED_KEY);
+  } catch (e) {
+    console.error('Failed to update localStorage in syncBackendReportsToStore:', e);
   }
 
   notifySubscribers();

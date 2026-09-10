@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Flame, 
   MapPin, 
@@ -12,51 +12,64 @@ import {
   Building2, 
   Activity 
 } from 'lucide-react';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
 
 export default function RiskHeatmapView() {
-  const [selectedPlant, setSelectedPlant] = useState('Plant 03');
+  const [storeState, setStoreState] = useState(getStoreState());
+  const [selectedPlant, setSelectedPlant] = useState('Unit 1');
 
-  // Plant risk zones data
-  const plantZones = {
-    'Plant 03': [
-      { id: 'Z-01', name: 'Drilling Rig 04 - Derrick Floor', hazard: 'Suspended Load & Gravity', score: 94, level: 'Critical', precursors: 18, color: 'bg-rose-50/60 text-rose-800 border-rose-200' },
-      { id: 'Z-02', name: 'Mud Pump & High Pressure Manifold', hazard: 'Pneumatic / Hydraulic Pressure', score: 88, level: 'High', precursors: 9, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-03', name: 'Pipe Staging & Catwalk Bay', hazard: 'Line of Fire / Pinch Points', score: 81, level: 'High', precursors: 7, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-04', name: 'Electrical Motor Control Center (MCC)', hazard: 'Arc Flash / Live Voltage', score: 68, level: 'Medium', precursors: 4, color: 'bg-purple-50/60 text-purple-800 border-purple-200' },
-      { id: 'Z-05', name: 'Chemical Additive Mixing Tank', hazard: 'Toxic Inhalation & Splashes', score: 58, level: 'Medium', precursors: 3, color: 'bg-purple-50/60 text-purple-800 border-purple-200' },
-      { id: 'Z-06', name: 'Administrative Walkways & Muster Point', hazard: 'Slip/Trip Housekeeping', score: 22, level: 'Low', precursors: 1, color: 'bg-emerald-50/60 text-emerald-800 border-emerald-200' },
-    ],
-    'Plant 01': [
-      { id: 'Z-11', name: 'Main Substation A 11kV Room', hazard: 'Live High-Voltage Arc Flash', score: 91, level: 'Critical', precursors: 11, color: 'bg-rose-50/60 text-rose-800 border-rose-200' },
-      { id: 'Z-12', name: 'Central Crude Distillation Column', hazard: 'Thermal & Hydrocarbon Fire', score: 79, level: 'High', precursors: 8, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-13', name: 'Compressor House No. 2', hazard: 'High Pressure Gas Leak', score: 74, level: 'High', precursors: 6, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-14', name: 'Utility Boiler Area', hazard: 'Steam Thermal Release', score: 48, level: 'Medium', precursors: 3, color: 'bg-purple-50/60 text-purple-800 border-purple-200' },
-    ],
-    'Plant 02': [
-      { id: 'Z-21', name: 'Hydrocarbon Separator Level 3 Walkway', hazard: 'Fall from Height Void', score: 86, level: 'High', precursors: 12, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-22', name: 'Pipe Rack Overhead Trays', hazard: 'Working at Height / Lifelines', score: 78, level: 'High', precursors: 7, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-23', name: 'Nitrogen Storage Bullet Tank', hazard: 'Asphyxiant Pressure Gas', score: 62, level: 'Medium', precursors: 4, color: 'bg-purple-50/60 text-purple-800 border-purple-200' },
-    ],
-    'Plant 04': [
-      { id: 'Z-31', name: 'Central Logistics Yard Corridor', hazard: 'Forklift-Pedestrian Collision', score: 82, level: 'High', precursors: 9, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-      { id: 'Z-32', name: 'Chemical Drum Loading Bay', hazard: 'Chemical Toxic Corrosive', score: 64, level: 'Medium', precursors: 5, color: 'bg-purple-50/60 text-purple-800 border-purple-200' },
-    ],
-    'Plant 05': [
-      { id: 'Z-41', name: 'Reformer High Pressure Gas Manifold', hazard: 'Pneumatic Pressure Energy', score: 89, level: 'Critical', precursors: 14, color: 'bg-rose-50/60 text-rose-800 border-rose-200' },
-      { id: 'Z-42', name: 'Sulfur Recovery Unit Sump', hazard: 'Toxic H2S Asphyxiation', score: 84, level: 'High', precursors: 7, color: 'bg-amber-50/60 text-amber-800 border-amber-200' },
-    ]
-  };
+  useEffect(() => {
+    const unsub = subscribeSafetyStore(setStoreState);
+    return unsub;
+  }, []);
+
+  // Plant risk zones data derived dynamically from reports
+  const plantZones = useMemo(() => {
+    const reports = storeState.reports || [];
+    const zonesByPlant = {};
+
+    reports.forEach((r, idx) => {
+      const plant = r.location || 'Unit 1';
+      if (!zonesByPlant[plant]) zonesByPlant[plant] = [];
+      const isSIF = r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80);
+      const score = r.ai_score || (isSIF ? 90 : 45);
+      const level = score >= 85 ? 'Critical' : score >= 70 ? 'High' : score >= 50 ? 'Medium' : 'Low';
+      const color = level === 'Critical' ? 'bg-rose-50/60 text-rose-800 border-rose-200' : level === 'High' ? 'bg-amber-50/60 text-amber-800 border-amber-200' : 'bg-emerald-50/60 text-emerald-800 border-emerald-200';
+      zonesByPlant[plant].push({
+        id: `Z-${String(idx + 1).padStart(2, '0')}`,
+        name: r.facility_unit || r.location || `Operating Bay ${idx + 1}`,
+        hazard: r.identified_hazard || r.description,
+        score: score,
+        level: level,
+        precursors: isSIF ? 1 : 0,
+        color: color
+      });
+    });
+
+    return zonesByPlant;
+  }, [storeState.reports]);
+
+  const availablePlants = useMemo(() => {
+    const keys = Object.keys(plantZones);
+    return keys.length > 0 ? keys : ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4'];
+  }, [plantZones]);
+
+  useEffect(() => {
+    if (availablePlants.length > 0 && !availablePlants.includes(selectedPlant)) {
+      setSelectedPlant(availablePlants[0]);
+    }
+  }, [availablePlants, selectedPlant]);
 
   // 5x5 Matrix (Likelihood vs Severity according to API RP 754)
   const matrixCells = [
-    { row: '5 - Catastrophic', col1: 'Medium', col2: 'High', col3: 'Critical (Plant 03 Rig 04)', col4: 'Critical (Plant 01 Substation)', col5: 'Critical' },
-    { row: '4 - Major', col1: 'Low', col2: 'Medium', col3: 'High (Plant 02 Separator)', col4: 'High (Plant 04 Logistics)', col5: 'Critical' },
+    { row: '5 - Catastrophic', col1: 'Medium', col2: 'High', col3: 'Critical', col4: 'Critical', col5: 'Critical' },
+    { row: '4 - Major', col1: 'Low', col2: 'Medium', col3: 'High', col4: 'High', col5: 'Critical' },
     { row: '3 - Moderate', col1: 'Low', col2: 'Medium', col3: 'Medium', col4: 'High', col5: 'High' },
     { row: '2 - Minor', col1: 'Low', col2: 'Low', col3: 'Low', col4: 'Medium', col5: 'Medium' },
-    { row: '1 - Negligible', col1: 'Low (Muster Point)', col2: 'Low', col3: 'Low', col4: 'Low', col5: 'Low' },
+    { row: '1 - Negligible', col1: 'Low', col2: 'Low', col3: 'Low', col4: 'Low', col5: 'Low' },
   ];
 
-  const currentZones = plantZones[selectedPlant] || plantZones['Plant 03'];
+  const currentZones = plantZones[selectedPlant] || [];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-800 animate-in fade-in duration-200">
@@ -81,7 +94,7 @@ export default function RiskHeatmapView() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-slate-500 font-medium">Select Facility:</span>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {['Plant 01', 'Plant 02', 'Plant 03', 'Plant 04', 'Plant 05'].map((pl) => (
+            {availablePlants.map((pl) => (
               <button
                 key={pl}
                 onClick={() => setSelectedPlant(pl)}
@@ -113,34 +126,44 @@ export default function RiskHeatmapView() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {currentZones.map((zone) => (
-            <div 
-              key={zone.id}
-              className={`p-5 rounded-2xl border transition-all space-y-3 shadow-xs hover:shadow-md ${zone.color}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase opacity-75">{zone.id}</span>
-                  <h4 className="text-xs font-bold text-slate-900 mt-0.5 leading-snug">{zone.name}</h4>
+        {currentZones.length === 0 ? (
+          <div className="p-10 rounded-2xl bg-stone-50/60 border border-dashed border-stone-200 text-center space-y-2 text-slate-500">
+            <MapPin className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="font-bold text-slate-700 text-sm">No Spatial Risk Data Logged for {selectedPlant}</p>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Spatial risk zones and precursor frequencies populate dynamically as incident and near-miss reports with location coordinates are submitted.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {currentZones.map((zone) => (
+              <div 
+                key={zone.id}
+                className={`p-5 rounded-2xl border transition-all space-y-3 shadow-xs hover:shadow-md ${zone.color}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase opacity-75">{zone.id}</span>
+                    <h4 className="text-xs font-bold text-slate-900 mt-0.5 leading-snug">{zone.name}</h4>
+                  </div>
+                  <span className="text-xs font-black font-mono shrink-0 px-2.5 py-0.5 rounded-md bg-white border border-stone-200 text-slate-900 shadow-xs">
+                    Score {zone.score}
+                  </span>
                 </div>
-                <span className="text-xs font-black font-mono shrink-0 px-2.5 py-0.5 rounded-md bg-white border border-stone-200 text-slate-900 shadow-xs">
-                  Score {zone.score}
-                </span>
-              </div>
 
-              <div className="text-xs">
-                <span className="text-[10px] uppercase font-mono block text-slate-500">Primary Hazard</span>
-                <span className="font-semibold text-slate-800">{zone.hazard}</span>
-              </div>
+                <div className="text-xs">
+                  <span className="text-[10px] uppercase font-mono block text-slate-500">Primary Hazard</span>
+                  <span className="font-semibold text-slate-800">{zone.hazard}</span>
+                </div>
 
-              <div className="pt-2 border-t border-black/5 flex items-center justify-between text-xs font-mono">
-                <span className="font-bold">{zone.precursors} Precursors</span>
-                <span className="font-bold uppercase tracking-wide">{zone.level} Risk</span>
+                <div className="pt-2 border-t border-black/5 flex items-center justify-between text-xs font-mono">
+                  <span className="font-bold">{zone.precursors} Precursors</span>
+                  <span className="font-bold uppercase tracking-wide">{zone.level} Risk</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 5x5 Severity vs Likelihood Matrix */}

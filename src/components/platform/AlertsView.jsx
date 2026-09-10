@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertOctagon, 
   AlertTriangle, 
@@ -15,6 +15,7 @@ import {
   Layers,
   FileCheck
 } from 'lucide-react';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
 
 export default function AlertsView() {
   const [filterSeverity, setFilterSeverity] = useState('ALL');
@@ -23,68 +24,34 @@ export default function AlertsView() {
   const [investigationStatus, setInvestigationStatus] = useState('UNDER_INVESTIGATION');
   const [investigationSuccess, setInvestigationSuccess] = useState(false);
 
-  const [alerts, setAlerts] = useState([
-    {
-      id: 'ALT-101',
-      severity: 'CRITICAL',
-      title: 'Suspended crane casing load dropped 2m from roughnecks',
-      location: 'Drilling Rig 04',
-      facility_unit: 'Derrick Floor Area',
-      riskScore: 94,
-      timeAgo: '8 min ago',
-      timestamp: '2026-09-02 09:42:15',
-      status: 'Action Required',
-      description: 'A 4-ton casing pipe slipped during high-line hoist over active derrick floor area. Critical barrier failure: synthetic sling integrity and perimeter exclusion barricade absent.',
-      hazard_type: 'Suspended Load / Kinetic Gravitational Energy',
-      barrier: 'Primary Rigging Sling & Drop Perimeter FAILED',
-      action_needed: 'Deploy physical exclusion barricades and verify sling proof-test certification.'
-    },
-    {
-      id: 'ALT-102',
-      severity: 'CRITICAL',
-      title: 'Energy isolation control not verified in 11kV Substation A',
-      location: 'Central Processing Facility',
-      facility_unit: 'Main Substation A',
-      riskScore: 91,
-      timeAgo: '24 min ago',
-      timestamp: '2026-09-03 14:26:00',
-      status: 'Action Required',
-      description: 'Technician opened live energized 11kV high-voltage switchgear cubicle without Lock-Out/Tag-Out (LOTO) energy isolation, without arc-flash PPE, and without zero-energy proof test.',
-      hazard_type: 'Live High-Voltage Electrical Arc & Flash',
-      barrier: 'LOTO Isolation Tagging BYPASSED',
-      action_needed: 'Immediate stop-work; enforce strict Lock-Out/Tag-Out (LOTO).'
-    },
-    {
-      id: 'ALT-103',
-      severity: 'CRITICAL',
-      title: 'High-pressure 85-bar flange blowout & vapor cloud explosion risk',
-      location: 'Hydrocarbon Gas Processing Unit',
-      facility_unit: 'Separator Manifold B (Joint B-12)',
-      riskScore: 89,
-      timeAgo: '42 min ago',
-      timestamp: '2026-09-04 16:15:30',
-      status: 'Action Required',
-      description: 'Severe hydrocarbon gas leakage and acute vibration detected on 85-bar separator inlet flange Joint B-12. Compound consequence of weak signals REP-0004 & REP-0005.',
-      hazard_type: 'Pressurized Gas Containment Rupture / VCE',
-      barrier: 'Primary Pressure Containment Boundary COMPROMISED',
-      action_needed: 'Depressurize Separator Manifold B, isolate 85-bar feed, replace spiral-wound gasket.'
-    },
-    {
-      id: 'ALT-104',
-      severity: 'HIGH',
-      title: 'Compound Weak Signals: Joint B-12 micro-vibration & ultrasonic weepage',
-      location: 'Hydrocarbon Gas Processing Unit',
-      facility_unit: 'Separator Manifold B (Joint B-12)',
-      riskScore: 72,
-      timeAgo: '1 hr ago',
-      timestamp: '2026-09-02 11:30:00',
-      status: 'Action Required',
-      description: 'Simultaneous 2.4 mm/s micro-vibrations (REP-0004) and 38 kHz ultrasonic gasket weepage (REP-0005) compound to induce rapid bolt loosening and flange blowout.',
-      hazard_type: 'Compound Fatigue Interaction (Signals 1 & 2)',
-      barrier: 'Acoustic & Vibration Baseline DEGRADED',
-      action_needed: 'Perform vibration modal analysis and retorque flange studs to OEM spec.'
-    }
-  ]);
+  const [alerts, setAlerts] = useState([]);
+
+  useEffect(() => {
+    const updateFromStore = (state) => {
+      const reps = state?.reports || [];
+      const sifReports = reps.filter(r => r.sif_precursor_assessment === 'YES' || r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 80));
+      const mapped = sifReports.map((r, i) => ({
+        id: r.report_reference || `ALT-${String(i + 1).padStart(3, '0')}`,
+        severity: (r.risk_level === 'Critical' || (r.ai_score && r.ai_score >= 90)) ? 'CRITICAL' : 'HIGH',
+        title: r.identified_hazard || r.description || 'Precursor Finding',
+        location: r.location || 'Unit 1',
+        facility_unit: r.facility_unit || r.location || 'Operating Area',
+        riskScore: r.ai_score || 85,
+        timeAgo: r.report_date || 'Today',
+        timestamp: r.report_date || 'Today',
+        status: r.status === 'Resolved' ? 'Resolved' : 'Action Required',
+        description: r.description,
+        hazard_type: r.identified_hazard || 'Operational Safety Finding',
+        barrier: r.barrier_status || 'Barrier Integrity Audit Pending',
+        action_needed: r.recommended_action || 'Immediate physical inspection and barrier enforcement required.'
+      }));
+      setAlerts(mapped);
+    };
+
+    updateFromStore(getStoreState());
+    const unsub = subscribeSafetyStore(updateFromStore);
+    return unsub;
+  }, []);
 
   const filteredAlerts = alerts.filter((alert) => {
     if (filterSeverity === 'CRITICAL' && alert.severity !== 'CRITICAL') return false;
@@ -150,108 +117,130 @@ export default function AlertsView() {
 
       {/* Alert Feed Cards */}
       <div className="space-y-4">
-        {filteredAlerts.map((alert) => (
-          <div 
-            key={alert.id}
-            className={`p-6 rounded-2xl bg-white border transition-all duration-200 shadow-xs hover:shadow-md space-y-4 ${
-              alert.severity === 'CRITICAL' 
-                ? 'border-rose-200 hover:border-rose-300' 
-                : 'border-amber-200 hover:border-amber-300'
-            }`}
-          >
-            
-            {/* Top Alert Header Bar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-3">
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                  alert.severity === 'CRITICAL' 
-                    ? 'bg-rose-50 text-rose-600 border border-rose-200' 
-                    : 'bg-amber-50 text-amber-600 border border-amber-200'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${alert.severity === 'CRITICAL' ? 'bg-rose-500 animate-ping' : 'bg-amber-500'}`} />
-                  {alert.severity}
-                </span>
+        {alerts.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border-2 border-dashed border-stone-200 text-xs text-slate-500 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF5A36] flex items-center justify-center mx-auto border border-orange-200">
+              <AlertOctagon className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-slate-800 text-base">No Active Critical Safety Alerts</p>
+            <p className="text-slate-500 max-w-md mx-auto text-xs">
+              Alerts are dynamically triggered when high-energy SIF precursors, barrier compromises, or critical safety findings are identified in reports.
+            </p>
+          </div>
+        ) : filteredAlerts.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-2xl border border-stone-200 text-xs text-slate-500 space-y-2">
+            <p className="font-semibold text-slate-700 text-sm">No alerts found matching the selected filter.</p>
+            <button
+              type="button"
+              onClick={() => setFilterSeverity('ALL')}
+              className="mt-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold cursor-pointer"
+            >
+              Show All Alerts
+            </button>
+          </div>
+        ) : (
+          filteredAlerts.map((alert) => (
+            <div 
+              key={alert.id}
+              className={`p-6 rounded-2xl bg-white border transition-all duration-200 shadow-xs hover:shadow-md space-y-4 ${
+                alert.severity === 'CRITICAL' 
+                  ? 'border-rose-200 hover:border-rose-300' 
+                  : 'border-amber-200 hover:border-amber-300'
+              }`}
+            >
+              
+              {/* Top Alert Header Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                <div className="flex items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                    alert.severity === 'CRITICAL' 
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                      : 'bg-amber-50 text-amber-600 border border-amber-200'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${alert.severity === 'CRITICAL' ? 'bg-rose-500 animate-ping' : 'bg-amber-500'}`} />
+                    {alert.severity}
+                  </span>
 
-                <span className="font-mono text-xs font-bold text-slate-700 bg-[#FAF8F5] px-2.5 py-0.5 rounded-md border border-[#EAE6E1]">
-                  {alert.id}
-                </span>
+                  <span className="font-mono text-xs font-bold text-slate-700 bg-[#FAF8F5] px-2.5 py-0.5 rounded-md border border-[#EAE6E1]">
+                    {alert.id}
+                  </span>
 
-                <span className="text-xs text-slate-500 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#FF5A36]" />
-                  {alert.location} • {alert.facility_unit}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 uppercase font-mono">Risk Score</span>
-                  <div className={`text-base font-black font-mono ${alert.severity === 'CRITICAL' ? 'text-rose-600' : 'text-amber-600'}`}>
-                    {alert.riskScore} / 100
-                  </div>
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-[#FF5A36]" />
+                    {alert.location} • {alert.facility_unit}
+                  </span>
                 </div>
 
-                <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  {alert.timeAgo}
-                </span>
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 uppercase font-mono">Risk Score</span>
+                    <div className={`text-base font-black font-mono ${alert.severity === 'CRITICAL' ? 'text-rose-600' : 'text-amber-600'}`}>
+                      {alert.riskScore} / 100
+                    </div>
+                  </div>
+
+                  <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {alert.timeAgo}
+                  </span>
+                </div>
+              </div>
+
+              {/* Title & Description */}
+              <div>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                  "{alert.title}"
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed mt-2 bg-[#FAF8F5] p-3.5 rounded-xl border border-[#EAE6E1]">
+                  {alert.description}
+                </p>
+              </div>
+
+              {/* Telemetry Detail Pills */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1]">
+                  <span className="text-[10px] uppercase font-bold text-[#FF5A36] font-mono block">Hazard Vector</span>
+                  <span className="text-slate-800 font-medium">{alert.hazard_type}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-100">
+                  <span className="text-[10px] uppercase font-bold text-rose-600 font-mono block">Barrier Integrity Audit</span>
+                  <span className="text-rose-700 font-medium">{alert.barrier}</span>
+                </div>
+              </div>
+
+              {/* Bottom Action Footer */}
+              <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Status:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                    alert.status === 'Resolved' 
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                      : alert.status === 'Action Required'
+                        ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                        : 'bg-amber-50 text-amber-600 border border-amber-200'
+                  }`}>
+                    {alert.status}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-500 text-[11px] hidden md:inline">
+                    Action: {alert.action_needed}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setInvestigatingAlert(alert)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#FF5A36] hover:to-[#E04826] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Investigate & Verify Barrier</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Title & Description */}
-            <div>
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                "{alert.title}"
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed mt-2 bg-[#FAF8F5] p-3.5 rounded-xl border border-[#EAE6E1]">
-                {alert.description}
-              </p>
-            </div>
-
-            {/* Telemetry Detail Pills */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1]">
-                <span className="text-[10px] uppercase font-bold text-[#FF5A36] font-mono block">Hazard Vector</span>
-                <span className="text-slate-800 font-medium">{alert.hazard_type}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-100">
-                <span className="text-[10px] uppercase font-bold text-rose-600 font-mono block">Barrier Integrity Audit</span>
-                <span className="text-rose-700 font-medium">{alert.barrier}</span>
-              </div>
-            </div>
-
-            {/* Bottom Action Footer */}
-            <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">Status:</span>
-                <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
-                  alert.status === 'Resolved' 
-                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
-                    : alert.status === 'Action Required'
-                      ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                      : 'bg-amber-50 text-amber-600 border border-amber-200'
-                }`}>
-                  {alert.status}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-slate-500 text-[11px] hidden md:inline">
-                  Action: {alert.action_needed}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => setInvestigatingAlert(alert)}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#FF5A36] hover:to-[#E04826] text-white font-bold text-xs shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>Investigate & Verify Barrier</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Investigation Modal */}

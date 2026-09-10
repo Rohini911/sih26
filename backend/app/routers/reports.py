@@ -1,6 +1,8 @@
 import re
+import csv
+import io
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
@@ -10,8 +12,14 @@ from ..models.feedback import Feedback
 from ..schemas.safety_report import SafetyReportCreate, SafetyReportListItem, SafetyReportDetail
 from ..schemas.ai_analysis import AIAnalysisResponse
 from ..dependencies import get_current_user
-from ..services.report_service import create_report, get_organization_reports, get_report_by_id
+from ..services.report_service import (
+    create_report, 
+    get_organization_reports, 
+    get_report_by_id,
+    find_duplicate_report
+)
 from ..services.analysis_service import execute_ai_analysis
+from ..services.historical_pattern_service import detect_and_update_weak_signals
 
 router = APIRouter(prefix="/api/reports", tags=["Safety Reports"])
 
@@ -159,17 +167,86 @@ def batch_upload_reports(
     db: Session = Depends(get_db)
 ):
     """
-    Batch ingests safety reports, saves them to DB, and executes AI analysis on each record.
+    Batch ingests safety reports, skips duplicate records before database insertion
+    and AI analysis, and returns verified records.
     """
+    seen_in_batch = set()
     results = []
+    new_count = 0
+    duplicate_count = 0
+    analyzed_count = 0
+    failed_count = 0
+    weak_signals_count = 0
+
     for item in payload:
         try:
+            norm_type = item.report_type.upper().replace("-", "_").replace(" ", "_")
+            if norm_type not in ["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS"]:
+                norm_type = "UNSAFE_CONDITION"
+
+            item_date = item.report_date.strip() if item.report_date and item.report_date.strip() else datetime.utcnow().strftime("%Y-%m-%d")
+            batch_key = (
+                item_date,
+                " ".join(item.location.strip().lower().split()),
+                norm_type,
+                " ".join(item.description.strip().lower().split())
+            )
+
+            # Intra-batch duplicate check
+            if batch_key in seen_in_batch:
+                duplicate_count += 1
+                continue
+            seen_in_batch.add(batch_key)
+
+            # Database duplicate check against authenticated organization
+            existing = find_duplicate_report(db, current_user.organization_id, item)
+            if existing:
+                duplicate_count += 1
+                results.append({
+                    "id": existing.id,
+                    "report_reference": existing.report_reference,
+                    "location": existing.location,
+                    "report_type": existing.report_type,
+                    "description": existing.description,
+                    "report_date": existing.report_date,
+                    "analysis_status": existing.analysis_status,
+                    "sif_precursor_assessment": existing.ai_analysis.sif_precursor_assessment if existing.ai_analysis else "NO",
+                    "identified_hazard": existing.ai_analysis.identified_hazard if existing.ai_analysis else "Pending Assessment",
+                    "is_duplicate": True
+                })
+                continue
+
+            # Genuinely new report: create, analyze, and correlate
             report = create_report(db, item, current_user)
+            analysis = None
             try:
-                execute_ai_analysis(db, report)
+                analysis = execute_ai_analysis(db, report)
+                analyzed_count += 1
             except Exception:
-                pass
+                failed_count += 1
+
             db.refresh(report)
+            new_count += 1
+
+            # Historical pattern comparison & Weak signal detection
+            if analysis:
+                try:
+                    ws_res = detect_and_update_weak_signals(
+                        db=db,
+                        org_id=current_user.organization_id,
+                        current_report=report,
+                        raw_nlp_result={
+                            "identified_hazard": analysis.identified_hazard,
+                            "energy_source": analysis.energy_source,
+                            "barrier_information": analysis.barrier_information,
+                            "identified_action": analysis.identified_action
+                        }
+                    )
+                    if ws_res.get("weak_signal_detected"):
+                        weak_signals_count += 1
+                except Exception:
+                    pass
+
             results.append({
                 "id": report.id,
                 "report_reference": report.report_reference,
@@ -179,9 +256,81 @@ def batch_upload_reports(
                 "report_date": report.report_date,
                 "analysis_status": report.analysis_status,
                 "sif_precursor_assessment": report.ai_analysis.sif_precursor_assessment if report.ai_analysis else "NO",
-                "identified_hazard": report.ai_analysis.identified_hazard if report.ai_analysis else "Pending Assessment"
+                "identified_hazard": report.ai_analysis.identified_hazard if report.ai_analysis else "Pending Assessment",
+                "is_duplicate": False
             })
-        except Exception as e:
+        except Exception:
+            failed_count += 1
             continue
-    return {"status": "success", "ingested_count": len(results), "reports": results}
+
+    return {
+        "status": "success",
+        "records_received": len(payload),
+        "records_created": new_count,
+        "records_analyzed": analyzed_count,
+        "records_failed": failed_count,
+        "weak_signals_detected": weak_signals_count,
+        "ingested_count": new_count,
+        "new_count": new_count,
+        "duplicate_count": duplicate_count,
+        "total_processed": len(payload),
+        "reports": results
+    }
+
+@router.post("/bulk-upload")
+async def bulk_upload_reports_alias(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unified Bulk Ingestion Endpoint.
+    Accepts both JSON array payload and multipart/form-data CSV file uploads.
+    Sequentially ingests records, executes AI analysis, and detects weak signals.
+    """
+    content_type = request.headers.get("content-type", "")
+    reports_list = []
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = None
+        for field in form.values():
+            if hasattr(field, "filename") and field.filename:
+                uploaded_file = field
+                break
+        
+        if not uploaded_file:
+            raise HTTPException(status_code=400, detail="No file found in multipart upload.")
+        
+        contents = await uploaded_file.read()
+        text_data = contents.decode("utf-8", errors="replace")
+        csv_reader = csv.DictReader(io.StringIO(text_data))
+        
+        for row in csv_reader:
+            # Map common column headers flexibly
+            desc = row.get("description") or row.get("Description") or row.get("incident_description") or ""
+            loc = row.get("location") or row.get("Site") or row.get("site") or "General Facility"
+            rtype = row.get("report_type") or row.get("Report Type") or row.get("type") or "UNSAFE_CONDITION"
+            rdate = row.get("incident_date") or row.get("report_date") or row.get("Date") or ""
+            
+            if desc.strip():
+                reports_list.append(SafetyReportCreate(
+                    description=desc.strip(),
+                    location=loc.strip(),
+                    report_type=rtype.strip(),
+                    report_date=rdate.strip() if rdate.strip() else None
+                ))
+    else:
+        body = await request.json()
+        if isinstance(body, list):
+            for item in body:
+                reports_list.append(SafetyReportCreate(**item))
+        elif isinstance(body, dict) and "reports" in body:
+            for item in body["reports"]:
+                reports_list.append(SafetyReportCreate(**item))
+        else:
+            raise HTTPException(status_code=400, detail="Expected a JSON array of reports.")
+
+    return batch_upload_reports(reports_list, current_user, db)
+
 

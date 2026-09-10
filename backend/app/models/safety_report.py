@@ -25,6 +25,8 @@ class SafetyReport(Base):
     
     report_type = Column(String(50), nullable=False) # UNSAFE_ACT, UNSAFE_CONDITION, NEAR_MISS
     description = Column(Text, nullable=False)
+    original_description = Column(Text, nullable=True)
+    normalized_description = Column(Text, nullable=True)
     location = Column(String(200), nullable=False)
     report_date = Column(String(50), nullable=False)
     additional_context = Column(Text, nullable=True)
@@ -37,3 +39,4 @@ class SafetyReport(Base):
     user = relationship("User", back_populates="safety_reports")
     ai_analysis = relationship("AIAnalysis", back_populates="safety_report", uselist=False, cascade="all, delete-orphan")
     feedbacks = relationship("Feedback", back_populates="safety_report", cascade="all, delete-orphan")
+    weak_signals = relationship("WeakSignal", secondary="report_weak_signals", back_populates="safety_reports")

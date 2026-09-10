@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Zap, 
@@ -17,156 +17,193 @@ import {
   Layers,
   ArrowRight
 } from 'lucide-react';
+import { getStoreState, subscribeSafetyStore } from '../../services/safetyStore';
+
+const BASE_RULES = [
+  {
+    id: 'LSR-01',
+    name: 'Energy Isolation',
+    category: 'Lock-Out / Tag-Out',
+    icon: Zap,
+    keywords: ['isolation', 'loto', 'energy', 'lockout', 'tagout', 'electrical', 'voltage', 'breaker'],
+    mandate: 'Verify zero-energy state and apply Lock-Out/Tag-Out (LOTO) before commencing work on any energized system.',
+    controls: [
+      'Apply multi-padlock hasps on primary isolation points',
+      'Test for zero voltage with calibrated multi-meter',
+      'Bleed trapped fluid/gas pressure to zero gauge reading'
+    ]
+  },
+  {
+    id: 'LSR-02',
+    name: 'Working at Height',
+    category: 'Fall Protection',
+    icon: ArrowUpRight,
+    keywords: ['height', 'fall', 'scaffold', 'ladder', 'harness', 'lanyard', 'deck', 'overhead', 'tie-off'],
+    mandate: 'Protect yourself against a fall whenever working at height above 1.8 meters or near unguarded platform edges.',
+    controls: [
+      'Inspect 100% tie-off twin lanyards and static lifelines',
+      'Verify green scaffolding inspection status tags daily',
+      'Install rigid toe-boards to prevent dropped objects'
+    ]
+  },
+  {
+    id: 'LSR-03',
+    name: 'Line of Fire',
+    category: 'Exclusion Zones',
+    icon: Crosshair,
+    keywords: ['line of fire', 'moving', 'pinch', 'rotating', 'crush', 'caught', 'struck', 'barrier'],
+    mandate: 'Position yourself outside the path of moving machinery, dynamic tension lines, and overhead crane trajectories.',
+    controls: [
+      'Establish hard barricaded exclusion zones around drop hazards',
+      'Maintain constant line-of-sight communication with crane operators',
+      'Never position body parts between moving and stationary objects'
+    ]
+  },
+  {
+    id: 'LSR-04',
+    name: 'Confined Space',
+    category: 'Atmospheric Safety',
+    icon: DoorClosed,
+    keywords: ['confined', 'vessel', 'tank', 'space', 'atmospheric', 'oxygen', 'h2s', 'gas testing', 'sentry'],
+    mandate: 'Obtain authorization, conduct continuous atmospheric gas testing, and maintain a dedicated standby entry watch.',
+    controls: [
+      'Continuous 4-gas monitor (LEL, O2, CO, H2S) calibration',
+      'Designate trained hole-watch sentry with emergency air supply',
+      'Verify positive mechanical ventilation before entry'
+    ]
+  },
+  {
+    id: 'LSR-05',
+    name: 'Safe Mechanical Lifting',
+    category: 'Crane & Rigging',
+    icon: Anchor,
+    keywords: ['lifting', 'crane', 'rigging', 'shackle', 'hoist', 'sling', 'suspended load', 'derrick'],
+    mandate: 'Verify lifting equipment integrity, never exceed safe working loads, and never walk or stand under suspended loads.',
+    controls: [
+      'Inspect certified shackles, wire slings, and spreader beams',
+      'Establish barricades beneath maximum slewing radius',
+      'Use non-conductive synthetic taglines to guide loads'
+    ]
+  },
+  {
+    id: 'LSR-06',
+    name: 'Bypass Safety Controls',
+    category: 'Overriding Interlocks',
+    icon: AlertOctagon,
+    keywords: ['bypass', 'override', 'interlock', 'disable', 'safety device', 'esd', 'psv', 'relief valve'],
+    mandate: 'Obtain executive approval and formal risk assessment before overriding or disabling any safety-critical device.',
+    controls: [
+      'Document formal Safety Instrumented System (SIS) bypass permit',
+      'Implement temporary compensatory manual mitigations',
+      'Maintain maximum 24-hour bypass time limit'
+    ]
+  },
+  {
+    id: 'LSR-07',
+    name: 'Hot Work',
+    category: 'Combustion & Sparks',
+    icon: Flame,
+    keywords: ['hot work', 'welding', 'cutting', 'grinding', 'spark', 'flammable', 'fire watch', 'lel'],
+    mandate: 'Control flammables and ignition sources in hazardous refinery zones and maintain continuous fire watch.',
+    controls: [
+      'Conduct LEL flammable gas test within 15m radius',
+      'Deploy fire blankets over drainage channels and open sumps',
+      'Post dedicated fire watch with charged 9kg dry powder cylinder'
+    ]
+  },
+  {
+    id: 'LSR-08',
+    name: 'Driving Safety',
+    category: 'Transport & Logistics',
+    icon: Car,
+    keywords: ['driving', 'vehicle', 'forklift', 'truck', 'speed', 'seatbelt', 'collision', 'pedestrian'],
+    mandate: 'Wear seatbelts, adhere to 20 km/h facility speed limits, and never use handheld mobile phones while operating vehicles.',
+    controls: [
+      'Active in-vehicle telematics GPS tracking & speed governor',
+      'Pre-trip vehicle circle-of-safety defect inspection',
+      'Separation of pedestrian crosswalks from heavy forklift traffic'
+    ]
+  },
+  {
+    id: 'LSR-09',
+    name: 'Work Authorization',
+    category: 'Permit-to-Work (PTW)',
+    icon: FileCheck,
+    keywords: ['permit', 'ptw', 'authorization', 'toolbox', 'jha', 'risk assessment', 'approval'],
+    mandate: 'Work only with a valid Permit-to-Work confirming that all hazards have been assessed and joint site checks completed.',
+    controls: [
+      'Perform joint on-site inspection between Issuer and Performer',
+      'Review Job Hazard Analysis (JHA) with frontline crew at toolbox talk',
+      'Revalidate permits following any shift change or work interruption'
+    ]
+  }
+];
 
 export default function LifeSavingRulesView() {
   const [selectedRule, setSelectedRule] = useState(null);
+  const [reports, setReports] = useState(() => {
+    const s = getStoreState();
+    return s.isWiped ? [] : (s.reports || []);
+  });
 
-  const rules = [
-    {
-      id: 'LSR-01',
-      name: 'Energy Isolation',
-      category: 'Lock-Out / Tag-Out',
-      icon: Zap,
-      compliance: 92.4,
-      violations: 6,
-      verifications: 284,
-      color: 'amber',
-      mandate: 'Verify zero-energy state and apply Lock-Out/Tag-Out (LOTO) before commencing work on any energized system.',
-      controls: [
-        'Apply multi-padlock hasps on primary isolation points',
-        'Test for zero voltage with calibrated multi-meter',
-        'Bleed trapped fluid/gas pressure to zero gauge reading'
-      ]
-    },
-    {
-      id: 'LSR-02',
-      name: 'Working at Height',
-      category: 'Fall Protection',
-      icon: ArrowUpRight,
-      compliance: 88.6,
-      violations: 11,
-      verifications: 340,
-      color: 'rose',
-      mandate: 'Protect yourself against a fall whenever working at height above 1.8 meters or near unguarded platform edges.',
-      controls: [
-        'Inspect 100% tie-off twin lanyards and static lifelines',
-        'Verify green scaffolding inspection status tags daily',
-        'Install rigid toe-boards to prevent dropped objects'
-      ]
-    },
-    {
-      id: 'LSR-03',
-      name: 'Line of Fire',
-      category: 'Exclusion Zones',
-      icon: Crosshair,
-      compliance: 78.2,
-      violations: 24,
-      verifications: 198,
-      color: 'rose',
-      mandate: 'Position yourself outside the path of moving machinery, dynamic tension lines, and overhead crane trajectories.',
-      controls: [
-        'Establish hard barricaded exclusion zones around drop hazards',
-        'Maintain constant line-of-sight communication with crane operators',
-        'Never position body parts between moving and stationary objects'
-      ]
-    },
-    {
-      id: 'LSR-04',
-      name: 'Confined Space',
-      category: 'Atmospheric Safety',
-      icon: DoorClosed,
-      compliance: 96.1,
-      violations: 2,
-      verifications: 142,
-      color: 'emerald',
-      mandate: 'Obtain authorization, conduct continuous atmospheric gas testing, and maintain a dedicated standby entry watch.',
-      controls: [
-        'Continuous 4-gas monitor (LEL, O2, CO, H2S) calibration',
-        'Designate trained hole-watch sentry with emergency air supply',
-        'Verify positive mechanical ventilation before entry'
-      ]
-    },
-    {
-      id: 'LSR-05',
-      name: 'Safe Mechanical Lifting',
-      category: 'Crane & Rigging',
-      icon: Anchor,
-      compliance: 84.5,
-      violations: 14,
-      verifications: 215,
-      color: 'amber',
-      mandate: 'Verify lifting equipment integrity, never exceed safe working loads, and never walk or stand under suspended loads.',
-      controls: [
-        'Inspect certified shackles, wire slings, and spreader beams',
-        'Establish barricades beneath maximum slewing radius',
-        'Use non-conductive synthetic taglines to guide loads'
-      ]
-    },
-    {
-      id: 'LSR-06',
-      name: 'Bypass Safety Controls',
-      category: 'Overriding Interlocks',
-      icon: AlertOctagon,
-      compliance: 97.8,
-      violations: 1,
-      verifications: 112,
-      color: 'emerald',
-      mandate: 'Obtain executive approval and formal risk assessment before overriding or disabling any safety-critical device.',
-      controls: [
-        'Document formal Safety Instrumented System (SIS) bypass permit',
-        'Implement temporary compensatory manual mitigations',
-        'Maintain maximum 24-hour bypass time limit'
-      ]
-    },
-    {
-      id: 'LSR-07',
-      name: 'Hot Work',
-      category: 'Combustion & Sparks',
-      icon: Flame,
-      compliance: 94.2,
-      violations: 4,
-      verifications: 180,
-      color: 'emerald',
-      mandate: 'Control flammables and ignition sources in hazardous refinery zones and maintain continuous fire watch.',
-      controls: [
-        'Conduct LEL flammable gas test within 15m radius',
-        'Deploy fire blankets over drainage channels and open sumps',
-        'Post dedicated fire watch with charged 9kg dry powder cylinder'
-      ]
-    },
-    {
-      id: 'LSR-08',
-      name: 'Driving Safety',
-      category: 'Transport & Logistics',
-      icon: Car,
-      compliance: 91.0,
-      violations: 7,
-      verifications: 160,
-      color: 'emerald',
-      mandate: 'Wear seatbelts, adhere to 20 km/h facility speed limits, and never use handheld mobile phones while operating vehicles.',
-      controls: [
-        'Active in-vehicle telematics GPS tracking & speed governor',
-        'Pre-trip vehicle circle-of-safety defect inspection',
-        'Separation of pedestrian crosswalks from heavy forklift traffic'
-      ]
-    },
-    {
-      id: 'LSR-09',
-      name: 'Work Authorization',
-      category: 'Permit-to-Work (PTW)',
-      icon: FileCheck,
-      compliance: 95.5,
-      violations: 3,
-      verifications: 420,
-      color: 'emerald',
-      mandate: 'Work only with a valid Permit-to-Work confirming that all hazards have been assessed and joint site checks completed.',
-      controls: [
-        'Perform joint on-site inspection between Issuer and Performer',
-        'Review Job Hazard Analysis (JHA) with frontline crew at toolbox talk',
-        'Revalidate permits following any shift change or work interruption'
-      ]
+  useEffect(() => {
+    const unsub = subscribeSafetyStore((s) => {
+      setReports(s.isWiped ? [] : (s.reports || []));
+    });
+    return unsub;
+  }, []);
+
+  // Dynamically calculate violations & verifications per rule from actual reports
+  const computedRules = BASE_RULES.map((rule) => {
+    if (reports.length === 0) {
+      return {
+        ...rule,
+        compliance: 100,
+        violations: 0,
+        verifications: 0,
+        hasData: false
+      };
     }
-  ];
+
+    let violations = 0;
+    let verifications = 0;
+
+    reports.forEach((r) => {
+      const text = `${r.identified_hazard || ''} ${r.description || ''} ${r.barrier_information || ''}`.toLowerCase();
+      const matchesRule = rule.keywords.some((kw) => text.includes(kw));
+
+      if (matchesRule) {
+        const isDefect = r.sif_precursor_assessment === 'YES' || 
+          r.barrier_information === 'BARRIER_FAILED' || 
+          r.barrier_information === 'BARRIER_MISSING';
+        if (isDefect) {
+          violations++;
+        } else {
+          verifications++;
+        }
+      }
+    });
+
+    const totalAudits = violations + verifications;
+    const compliance = totalAudits > 0 
+      ? Math.round((verifications / totalAudits) * 100) 
+      : 100;
+
+    return {
+      ...rule,
+      compliance,
+      violations,
+      verifications: totalAudits,
+      hasData: totalAudits > 0
+    };
+  });
+
+  const totalReports = reports.length;
+  const totalViolations = computedRules.reduce((acc, r) => acc + r.violations, 0);
+  const totalAudited = computedRules.reduce((acc, r) => acc + r.verifications, 0);
+  const overallComplianceRate = totalAudited > 0
+    ? `${Math.round(((totalAudited - totalViolations) / totalAudited) * 100)}%`
+    : totalReports === 0 ? '— (Awaiting Field Records)' : '100%';
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1600px] mx-auto text-slate-800 animate-in fade-in duration-200">
@@ -190,14 +227,16 @@ export default function LifeSavingRulesView() {
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 rounded-xl bg-white border border-[#EAE6E1] text-xs font-mono text-slate-700 shadow-xs flex items-center gap-2">
             <span>Overall Compliance:</span>
-            <strong className="text-emerald-600 font-bold text-sm">91.4%</strong>
+            <strong className={`font-bold text-sm ${totalReports > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+              {overallComplianceRate}
+            </strong>
           </div>
         </div>
       </div>
 
       {/* 9 Rules Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {rules.map((rule) => {
+        {computedRules.map((rule) => {
           const Icon = rule.icon;
           return (
             <div 
@@ -220,13 +259,15 @@ export default function LifeSavingRulesView() {
                   </div>
 
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    rule.compliance >= 92 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                      : rule.compliance >= 85
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    !rule.hasData 
+                      ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                      : rule.compliance >= 90 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                        : rule.compliance >= 75
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
                   }`}>
-                    {rule.compliance}% Compliance
+                    {rule.hasData ? `${rule.compliance}% Compliance` : 'No Observations'}
                   </span>
                 </div>
 
@@ -237,16 +278,16 @@ export default function LifeSavingRulesView() {
 
               <div className="pt-3 border-t border-stone-100 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-500 text-[11px] font-mono">
-                  <span>Verifications: <strong className="text-slate-900 font-bold">{rule.verifications}</strong></span>
-                  <span>Violations: <strong className={rule.violations > 10 ? 'text-rose-600 font-bold' : 'text-slate-700'}>{rule.violations}</strong></span>
+                  <span>Audits: <strong className="text-slate-900 font-bold">{rule.verifications}</strong></span>
+                  <span>Violations: <strong className={rule.violations > 0 ? 'text-rose-600 font-bold' : 'text-slate-700'}>{rule.violations}</strong></span>
                 </div>
 
                 <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full ${
-                      rule.compliance >= 92 ? 'bg-emerald-500' : rule.compliance >= 85 ? 'bg-amber-500' : 'bg-rose-500'
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      !rule.hasData ? 'bg-slate-200' : rule.compliance >= 90 ? 'bg-emerald-500' : rule.compliance >= 75 ? 'bg-amber-500' : 'bg-rose-500'
                     }`}
-                    style={{ width: `${rule.compliance}%` }}
+                    style={{ width: rule.hasData ? `${rule.compliance}%` : '0%' }}
                   />
                 </div>
               </div>
@@ -297,12 +338,12 @@ export default function LifeSavingRulesView() {
 
             <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] grid grid-cols-2 gap-4 text-xs">
               <div>
-                <span className="text-slate-500 text-[11px] block">Total Control Audits</span>
+                <span className="text-slate-500 text-[11px] block">Total Ingested Observations</span>
                 <span className="font-mono text-base font-bold text-slate-900">{selectedRule.verifications}</span>
               </div>
               <div>
-                <span className="text-slate-500 text-[11px] block">Logged Infractions</span>
-                <span className={`font-mono text-base font-bold ${selectedRule.violations > 10 ? 'text-rose-600' : 'text-slate-700'}`}>
+                <span className="text-slate-500 text-[11px] block">Logged Infractions / Failures</span>
+                <span className={`font-mono text-base font-bold ${selectedRule.violations > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
                   {selectedRule.violations}
                 </span>
               </div>

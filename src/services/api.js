@@ -126,6 +126,25 @@ export const api = {
     return res.json();
   },
 
+  batchUploadReports: async (reportsData) => {
+    const res = await fetch(`${API_BASE}/reports/batch`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reportsData)
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      let message = 'Failed to process batch upload';
+      if (typeof errData.detail === 'string') {
+        message = errData.detail;
+      } else if (Array.isArray(errData.detail)) {
+        message = errData.detail.map(e => `${e.loc ? e.loc.filter(l => l !== 'body').join('.') : 'Field'}: ${e.msg}`).join('; ');
+      }
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
   getReports: async (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.search) params.append('search', filters.search);
@@ -158,12 +177,29 @@ export const api = {
   },
 
   executeAiAnalysis: async (payload) => {
-    const res = await fetch(`${API_BASE}/ai-analysis/analyze`, {
+    const res = await fetch(`${API_BASE}/analysis/analyze`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Failed to execute AI analysis');
+    if (!res.ok) {
+      let errMessage = 'Failed to execute AI analysis';
+      try {
+        const errData = await res.json();
+        if (errData?.detail) {
+          if (typeof errData.detail === 'string') {
+            errMessage = errData.detail;
+          } else if (Array.isArray(errData.detail)) {
+            errMessage = errData.detail.map(e => `${e.loc ? e.loc.filter(l => l !== 'body').join('.') : 'Field'}: ${e.msg}`).join('; ');
+          } else {
+            errMessage = JSON.stringify(errData.detail);
+          }
+        }
+      } catch (e) {
+        if (res.statusText) errMessage = `${errMessage}: ${res.statusText}`;
+      }
+      throw new Error(errMessage);
+    }
     return res.json();
   },
 
@@ -254,6 +290,25 @@ export const api = {
       body: JSON.stringify({ status, notes })
     });
     if (!res.ok) throw new Error('Failed to submit weak signal review');
+    return res.json();
+  },
+
+  correlateReports: async (reports) => {
+    const res = await fetch(`${API_BASE}/weak-signals/correlate-reports`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ reports })
+    });
+    if (!res.ok) throw new Error('Failed to run signal correlation');
+    return res.json();
+  },
+
+  triggerSignalCorrelation: async () => {
+    const res = await fetch(`${API_BASE}/weak-signals/correlate`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to trigger signal correlation');
     return res.json();
   },
 

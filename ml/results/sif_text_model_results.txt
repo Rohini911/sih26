@@ -2,11 +2,11 @@
 LEAKAGE-CONTROLLED SIF TEXT MODEL EVALUATION REPORT
 ======================================================================
 Model Architecture:          Pipeline(TfidfVectorizer + LogisticRegression)
-Data Source:                 C:\Users\Rohini\OneDrive\Documents\sih26\ml\data\sif_dataset.csv
+Data Source:                 C:\Users\Dell\.gemini\antigravity-ide\scratch\safety-intelligence-platform\ml\data\sif_dataset.csv
 Random State:                42
 Number of Training Samples:  12,000
 Number of Test Samples:      3,000
-Number of TF-IDF Features:   1,139
+Number of TF-IDF Features:   1,093
 Target Classes:              ['Non-SIF-potential', 'SIF-potential']
 ----------------------------------------------------------------------
 Overall Metrics on Held-out Test Data:
