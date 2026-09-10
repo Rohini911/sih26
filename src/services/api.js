@@ -266,6 +266,15 @@ export const api = {
     return res.json();
   },
 
+  resetBaseline: async () => {
+    const res = await fetch(`${API_BASE}/dashboard/reset-baseline`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to reset baseline data');
+    return res.json();
+  },
+
   // Weak Signals Intelligence
   getWeakSignals: async () => {
     const res = await fetch(`${API_BASE}/weak-signals`, {

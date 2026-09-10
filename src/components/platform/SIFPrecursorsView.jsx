@@ -34,7 +34,8 @@ import {
   HelpCircle,
   AlertOctagon,
   Lock,
-  UploadCloud
+  UploadCloud,
+  Trash2
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -114,6 +115,10 @@ export default function SIFPrecursorsView({ onNavigate }) {
 
   // Detailed Analysis Dossier Modal
   const [selectedDossierReport, setSelectedDossierReport] = useState(null);
+
+  // Reset baseline confirmation modal states
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState(null);
@@ -362,7 +367,7 @@ export default function SIFPrecursorsView({ onNavigate }) {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Reset to default baseline
+  // Trigger confirmation modal for Reset Baseline
   const handleResetData = () => {
     if (!isAdmin) {
       setToastMessage({
@@ -372,13 +377,43 @@ export default function SIFPrecursorsView({ onNavigate }) {
       setTimeout(() => setToastMessage(null), 4000);
       return;
     }
-    localStorage.removeItem(ADMIN_PRECURSORS_STORAGE_KEY);
-    updatePrecursorsList([]);
-    setToastMessage({
-      type: 'success',
-      text: 'Precursor dataset reset. Zero operational records in state.'
-    });
-    setTimeout(() => setToastMessage(null), 3000);
+    setShowResetConfirmModal(true);
+  };
+
+  // Execute full baseline wipe across backend DB and frontend store upon confirmation
+  const executeResetBaseline = async () => {
+    setIsResetting(true);
+    try {
+      // 1. Wipe all operational data in localStorage and backend database
+      await clearAllSafetyData();
+
+      // 2. Ensure all precursor and admin keys are cleared
+      localStorage.removeItem(ADMIN_PRECURSORS_STORAGE_KEY);
+      localStorage.removeItem('safetyai_active_reports');
+      localStorage.removeItem('safetyai_admin_precursors_data');
+      localStorage.removeItem('safetyai_weak_signals_data');
+      localStorage.removeItem('SAFETY_TOTAL_REPORTS_V3');
+      localStorage.removeItem('safetyai_admin_precursors_v2');
+
+      // 3. Clear local state
+      updatePrecursorsList([]);
+      setShowResetConfirmModal(false);
+
+      setToastMessage({
+        type: 'success',
+        text: 'Baseline successfully reset! All operational reports, precursor findings, and static data wiped across Admin & User dashboards.'
+      });
+      setTimeout(() => setToastMessage(null), 4500);
+    } catch (err) {
+      console.error('Reset baseline error:', err);
+      setToastMessage({
+        type: 'error',
+        text: 'Failed to reset baseline completely. Please try again.'
+      });
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   // ================= METRICS COMPUTATION =================
@@ -1346,6 +1381,61 @@ export default function SIFPrecursorsView({ onNavigate }) {
 
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= RESET BASELINE CONFIRMATION POPUP MODAL ================= */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-in zoom-in-95 duration-200 text-left">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold font-heading text-slate-900">
+                  Reset Platform Baseline?
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Are you sure you want to reset all data? This action will permanently wipe all operational safety observations, AI analyses, SIF precursor findings, and weak signals across <strong>both Admin and User dashboards</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
+              <span className="font-bold shrink-0">⚠ Warning:</span>
+              <span>All active reports, metrics, charts, and stored records will return to a clean zero-baseline cold start.</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setShowResetConfirmModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={executeResetBaseline}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 rounded-xl shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                {isResetting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Wiping Baseline Data...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Yes, Reset All Data</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

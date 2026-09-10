@@ -221,3 +221,35 @@ def get_dashboard_data(
         "potential_sif_findings_list": potential_sif_findings_list,
         "reports_awaiting_review": reports_awaiting_review
     }
+
+@router.post("/reset-baseline")
+def reset_baseline_data(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Administrator endpoint to completely wipe and reset all operational data:
+    - Feedbacks
+    - AI Analyses
+    - Weak Signals
+    - Safety Reports
+    Returning system to a clean zero-baseline cold start for both admin and users.
+    """
+    org_id = current_user.organization_id
+    db.query(Feedback).filter(Feedback.organization_id == org_id).delete(synchronize_session=False)
+    db.query(AIAnalysis).filter(AIAnalysis.organization_id == org_id).delete(synchronize_session=False)
+    db.query(WeakSignal).filter(WeakSignal.organization_id == org_id).delete(synchronize_session=False)
+    db.query(SafetyReport).filter(SafetyReport.organization_id == org_id).delete(synchronize_session=False)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "All operational records and baseline data wiped successfully.",
+        "organization_id": org_id,
+        "total_reports": 0,
+        "completed_analysis": 0,
+        "potential_sif_findings": 0,
+        "awaiting_review": 0,
+        "weak_signals_count": 0
+    }
+

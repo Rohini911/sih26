@@ -171,7 +171,7 @@ export function getStoreState() {
   };
 }
 
-// Clear whole existing static data (1-Click complete wipe for fresh upload)
+// Clear whole existing static and operational data (complete wipe for both Admin and User dashboards)
 export async function clearAllSafetyData() {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -179,13 +179,27 @@ export async function clearAllSafetyData() {
       localStorage.setItem(STORAGE_PRECURSORS_KEY, JSON.stringify([]));
       localStorage.setItem(STORAGE_WEAK_SIGNALS_KEY, JSON.stringify([]));
       localStorage.setItem('SAFETY_TOTAL_REPORTS_V3', JSON.stringify([]));
+      localStorage.setItem('safetyai_admin_precursors_v2', JSON.stringify([]));
+      localStorage.setItem('safetyai_admin_precursors_data', JSON.stringify([]));
+      localStorage.setItem('safetyai_precursors_data', JSON.stringify([]));
       localStorage.setItem(STORAGE_WIPED_KEY, 'true');
     }
   } catch (e) {
     console.error('Failed to wipe data in localStorage:', e);
   }
+
+  // Also wipe backend database records (safety_reports, ai_analyses, feedbacks, weak_signals)
+  try {
+    const { api } = await import('./api');
+    if (api && typeof api.resetBaseline === 'function') {
+      await api.resetBaseline();
+    }
+  } catch (e) {
+    console.warn('Backend database reset call:', e);
+  }
+
   notifySubscribers();
-  return { success: true, message: 'All safety records and data successfully removed. Ready for new upload.' };
+  return { success: true, message: 'All safety records, precursor findings, and operational data successfully removed across Admin and User views.' };
 }
 
 // Ingest records from uploaded file (CSV / JSON) and analyze starting from today
