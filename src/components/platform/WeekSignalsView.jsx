@@ -1036,30 +1036,7 @@ export default function WeekSignalsView({ onNavigate }) {
                 </div>
               </div>
 
-              {/* 5-Step Progression Timeline */}
-              {selectedCluster.progression_steps && selectedCluster.progression_steps.length > 0 && (
-                <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    Chronological Hazard Progression Pathway (5 Stages)
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                    {selectedCluster.progression_steps.map((st, i) => (
-                      <div key={i} className="p-2.5 rounded-lg bg-white border border-[#EAE6E1] space-y-1 text-center shadow-2xs">
-                        <div className="text-[10px] font-mono font-bold text-slate-500 uppercase">{st.step}</div>
-                        <div className={`text-[10px] font-extrabold ${
-                          st.trend === 'Increasing' ? 'text-rose-600' : 'text-amber-600'
-                        }`}>
-                          {st.trend}
-                        </div>
-                        <p className="text-[10.5px] text-slate-600 text-left pt-0.5 leading-snug line-clamp-3">
-                          {st.status}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
 
               {/* Mechanism Explanation & Mitigation Action */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1228,36 +1205,7 @@ export default function WeekSignalsView({ onNavigate }) {
                 </div>
               )}
 
-              {/* Signal Progression Timeline */}
-              {selectedSignal.progression_steps && selectedSignal.progression_steps.length > 0 && (
-                <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-3 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      Signal Progression Timeline
-                    </span>
-                    <span className="text-xs font-bold text-slate-700">
-                      Trend: <span className="text-amber-600 font-extrabold">{selectedSignal.trend}</span>
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                    {selectedSignal.progression_steps.map((step, idx) => (
-                      <div key={idx} className="p-2.5 rounded-lg bg-white border border-[#EAE6E1] text-center space-y-1 shadow-2xs">
-                        <div className="text-[10px] font-mono font-bold text-slate-500 uppercase">{step.step}</div>
-                        <div className={`text-[10px] font-extrabold ${
-                          step.trend === 'Increasing' ? 'text-rose-600' : step.trend === 'Decreasing' ? 'text-emerald-600' : 'text-amber-600'
-                        }`}>
-                          {step.trend}
-                        </div>
-                        <p className="text-[10px] text-slate-600 leading-tight line-clamp-3 text-left pt-0.5">
-                          {step.status}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Correlated Identifying Records Breakdown (Rule: >= 2 Records) */}
               <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE6E1] space-y-3 shadow-2xs">
