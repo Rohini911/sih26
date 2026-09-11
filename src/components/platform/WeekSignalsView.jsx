@@ -1250,63 +1250,6 @@ export default function WeekSignalsView({ onNavigate }) {
                 )}
               </div>
 
-              {/* HOW TO OVERCOME: Mitigation & Corrective Action Protocol */}
-              {(() => {
-                const overcome = getOvercomeDetails(selectedSignal);
-                if (!overcome) return null;
-                return (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#F0FDF4] border-2 border-emerald-300 space-y-3.5 shadow-xs animate-in fade-in duration-150">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-emerald-200">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                          <ShieldCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-emerald-950 font-heading">
-                            HOW TO OVERCOME THIS WEAK SIGNAL
-                          </h4>
-                          <p className="text-[11px] text-emerald-800 font-medium">
-                            {overcome.title}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                        Prescribed Safeguards
-                      </span>
-                    </div>
-
-                    {/* Primary Action Mandate */}
-                    <div className="p-3 rounded-xl bg-white border border-emerald-200 text-xs text-slate-800 leading-relaxed shadow-2xs">
-                      <strong className="text-emerald-800 font-bold uppercase tracking-wide mr-1.5">
-                        Primary Action Mandate:
-                      </strong>
-                      <span>{overcome.primaryAction}</span>
-                    </div>
-
-                    {/* 3 Step Action Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {overcome.steps.map((st, i) => (
-                        <div key={i} className="p-3 rounded-xl bg-white border border-emerald-200 space-y-1 shadow-2xs">
-                          <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>{st.step}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
-                            {st.desc}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Verification Standard */}
-                    <div className="pt-2 border-t border-emerald-200/80 flex items-center gap-2 text-[11px] text-emerald-900 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span className="font-bold">Verification Standard:</span>
-                      <span className="text-emerald-800">{overcome.verificationCheck}</span>
-                    </div>
-                  </div>
-                );
-              })()}
 
               {/* ================= 6. REVIEW STATUS & GOVERNANCE ================= */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EAE6E1] space-y-4 shadow-xs">
