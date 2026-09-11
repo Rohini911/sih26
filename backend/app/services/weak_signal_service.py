@@ -1,11 +1,8 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
-from ..models.safety_report import SafetyReport
-from ..models.ai_analysis import AIAnalysis
 from ..models.weak_signal import WeakSignal, WeakSignalReview
 from ..ai_services.signal_correlation import (
-    correlate_reports_into_weak_signals,
     evaluate_report_pair_or_group
 )
 
@@ -81,35 +78,9 @@ def get_weak_signals_for_organization(db: Session, org_id: str) -> Dict[str, Any
         correlated.append(structured_sig)
         seen_titles.add(ws.title.lower())
 
-    # 2. Also run multi-report correlation across completed reports to capture any unlinked clusters
-    db_reports = db.query(SafetyReport).filter(
-        SafetyReport.organization_id == org_id,
-        SafetyReport.analysis_status == "COMPLETED"
-    ).all()
-
-    if db_reports and len(db_reports) >= 2:
-        report_dicts = []
-        for r in db_reports:
-            analysis = r.ai_analysis
-            report_dicts.append({
-                "id": r.id,
-                "report_reference": r.report_reference,
-                "report_type": r.report_type,
-                "description": r.description,
-                "location": r.location,
-                "report_date": r.report_date,
-                "additional_context": r.additional_context,
-                "identified_hazard": analysis.identified_hazard if analysis else None,
-                "sif_precursor_assessment": analysis.sif_precursor_assessment if analysis else "NO",
-                "energy_source": analysis.energy_source if analysis else None,
-                "barrier_information": analysis.barrier_information if analysis else None,
-                "safety_signals": analysis.safety_signals if analysis else []
-            })
-        report_correlated = correlate_reports_into_weak_signals(report_dicts)
-        for sig in report_correlated:
-            if sig.get("title", "").lower() not in seen_titles:
-                correlated.append(sig)
-                seen_titles.add(sig.get("title", "").lower())
+    # Weak signals are created only by the historical detector during report
+    # analysis. Do not synthesize new signals while reading the dashboard:
+    # correlation is evidence for review, not proof of a weak signal.
 
     # 4. Attach any persisted reviews from weak_signal_reviews table
     reviews = db.query(WeakSignalReview).filter(WeakSignalReview.organization_id == org_id).all()

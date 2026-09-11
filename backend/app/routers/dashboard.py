@@ -34,10 +34,26 @@ def get_dashboard_data(
     ).count()
 
     # 3. Potential SIF Findings Count
-    potential_sif_findings = db.query(AIAnalysis).filter(
-        AIAnalysis.organization_id == org_id,
+    potential_sif_findings = db.query(func.count(func.distinct(SafetyReport.id))).join(AIAnalysis).filter(
+        SafetyReport.organization_id == org_id,
         AIAnalysis.sif_precursor_assessment == "YES"
-    ).count()
+    ).scalar() or 0
+
+    sif_precursors_awaiting_review = db.query(SafetyReport).join(AIAnalysis).outerjoin(
+        Feedback, Feedback.report_id == SafetyReport.id
+    ).filter(
+        SafetyReport.organization_id == org_id,
+        AIAnalysis.sif_precursor_assessment == "YES",
+        Feedback.id == None
+    ).with_entities(func.count(func.distinct(SafetyReport.id))).scalar() or 0
+
+    sif_precursors_completed = db.query(SafetyReport).join(AIAnalysis).join(
+        Feedback, Feedback.report_id == SafetyReport.id
+    ).filter(
+        SafetyReport.organization_id == org_id,
+        AIAnalysis.sif_precursor_assessment == "YES",
+        Feedback.review_status == "COMPLETED"
+    ).with_entities(func.count(func.distinct(SafetyReport.id))).scalar() or 0
 
     # 4. Awaiting Review Count: Completed analyses without feedback
     feedback_report_ids = db.query(Feedback.report_id).filter(
@@ -210,6 +226,9 @@ def get_dashboard_data(
         "total_reports": total_reports,
         "completed_analysis": completed_analysis,
         "potential_sif_findings": potential_sif_findings,
+        "total_sif_precursors": potential_sif_findings,
+        "sif_precursors_awaiting_review": sif_precursors_awaiting_review,
+        "sif_precursors_completed": sif_precursors_completed,
         "awaiting_review": awaiting_review,
         "weak_signals_count": weak_signals_count,
         "report_distribution": report_distribution,

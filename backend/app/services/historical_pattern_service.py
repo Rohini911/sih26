@@ -42,6 +42,10 @@ PATTERN_EVIDENCE_THRESHOLD: float = 0.50
 MIN_RECURRENCE_COUNT: int = 2
 ANALYSIS_WINDOW_DAYS: int = 180
 
+# A weak signal needs repeated evidence of the same safety deficiency. Narrative
+# overlap and co-location alone are correlation clues, not signal conditions.
+MIN_SAFETY_EVIDENCE_DIMENSIONS: int = 2
+
 
 def normalize_unit(val: Optional[str]) -> str:
     """Normalizes unit and location strings for robust spatial matching."""
@@ -257,6 +261,11 @@ def detect_and_update_weak_signals(
         else:
             activity_score = 0.0
 
+        energy_score = 1.0 if (
+            current_energy != "Not identified / Insufficient Information" and
+            prev_energy and current_energy.lower() == prev_energy.lower()
+        ) else 0.0
+
         # Dimension E: Barrier Issue Match
         if ("failed" in current_barrier.lower() or "missing" in current_barrier.lower()) and \
            ("failed" in prev_barrier.lower() or "missing" in prev_barrier.lower()):
@@ -293,23 +302,31 @@ def detect_and_update_weak_signals(
             (temporal_score * WEIGHT_TEMPORAL_RECURRENCE)
         )
 
-        # Decision rule for this candidate
-        is_match = False
+        # A weak signal represents recurrence of one meaningful safety issue.
+        # Do not merge different hazards merely because their words or locations
+        # overlap (for example, a gas leak and an ignition-source observation).
+        shared_safety_family = (
+            current_family == prev_family and current_family != "OPERATIONAL_DEVIATION"
+        )
+        corroborating_dimensions = sum([
+            location_score > 0,
+            barrier_score > 0,
+            energy_score > 0,
+            activity_score > 0,
+            temporal_score >= 0.5,
+        ])
+        is_match = (
+            shared_safety_family and
+            temporal_score >= 0.5 and
+            corroborating_dimensions >= MIN_SAFETY_EVIDENCE_DIMENSIONS and
+            composite_evidence >= PATTERN_EVIDENCE_THRESHOLD
+        )
         reasons = []
-
-        if composite_evidence >= PATTERN_EVIDENCE_THRESHOLD:
-            is_match = True
-            reasons.append(f"Composite evidence score {composite_evidence:.2f} >= {PATTERN_EVIDENCE_THRESHOLD}")
-
-        # Core Safety Heuristic: Same Unit AND Same Hazard Family with non-zero similarity
-        if norm_current_unit == norm_prev_unit and current_family == prev_family and current_family != "OPERATIONAL_DEVIATION":
-            is_match = True
-            reasons.append(f"Same operating area ({current_unit}) with recurring {current_family.replace('_', ' ').title()}")
-
-        # High narrative similarity override (e.g. >= 0.28)
-        if jaccard_sim >= 0.28:
-            is_match = True
-            reasons.append(f"High narrative overlap (Jaccard: {jaccard_sim:.2f})")
+        if is_match:
+            reasons.append(
+                f"Recurring {current_family.replace('_', ' ').title()} with "
+                f"{corroborating_dimensions} corroborating safety evidence dimensions"
+            )
 
         if is_match:
             matching_report_models.append(prev)
@@ -327,6 +344,9 @@ def detect_and_update_weak_signals(
                 "evidence_score": round(composite_evidence, 4),
                 "hazard_match": "Yes" if hazard_score > 0 else "No",
                 "location_match": "Yes" if location_score > 0 else "No",
+                "barrier_match": "Yes" if barrier_score > 0 else "No",
+                "energy_match": "Yes" if energy_score > 0 else "No",
+                "activity_match": "Yes" if activity_score > 0 else "No",
                 "match_reason": "; ".join(reasons)
             })
 

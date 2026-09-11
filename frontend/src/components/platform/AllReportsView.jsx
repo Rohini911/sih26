@@ -29,6 +29,7 @@ export default function AllReportsView({ onNavigate }) {
   const [siteFilter, setSiteFilter] = useState('ALL');
   const [selectedReport, setSelectedReport] = useState(null);
   const [reports, setReports] = useState([]);
+  const [totalReports, setTotalReports] = useState(0);
 
   useEffect(() => {
     // 1. Initialize immediately from local reactive store
@@ -44,8 +45,12 @@ export default function AllReportsView({ onNavigate }) {
     // 2. Fetch all persisted reports from backend to guarantee consistency on load/refresh
     const syncBackendReports = async () => {
       try {
-        const backendReports = await api.getReports();
-        if (Array.isArray(backendReports) && backendReports.length > 0) {
+        const [backendReports, dashboardData] = await Promise.all([
+          api.getReports(),
+          api.getDashboardData()
+        ]);
+        if (Array.isArray(backendReports)) {
+          setTotalReports(dashboardData?.total_reports ?? backendReports.length);
           syncBackendReportsToStore(backendReports, [], false);
         }
       } catch (err) {
@@ -120,7 +125,7 @@ export default function AllReportsView({ onNavigate }) {
 
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-slate-500 font-medium">
-            Showing <strong className="text-[#FF5A36]">{filteredReports.length}</strong> of {reports.length} records
+            Showing <strong className="text-[#FF5A36]">{filteredReports.length}</strong> of {totalReports} records
           </span>
         </div>
       </div>

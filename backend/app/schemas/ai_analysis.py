@@ -50,6 +50,7 @@ class AIAnalysisRequest(BaseModel):
 class AIAnalysisExecuteResponse(BaseModel):
     report_id: Optional[int] = None
     report_reference: Optional[str] = None
+    description: Optional[str] = None
     report_name: str
     sif_precursor: str  # "YES", "NO", "INSUFFICIENT_INFORMATION"
     determination_status: str

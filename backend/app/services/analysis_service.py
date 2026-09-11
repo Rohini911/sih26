@@ -11,6 +11,29 @@ from ..schemas.safety_report import SafetyReportCreate
 from .report_service import find_duplicate_report, create_report
 from .historical_pattern_service import detect_and_update_weak_signals
 
+FREE_TEXT_FALLBACK = "No free-text observation provided."
+
+def extract_checklist_items(additional_context: Optional[Union[str, List[str]]]) -> List[str]:
+    """Extract the user-selected safety factor labels without inventing content."""
+    if isinstance(additional_context, list):
+        return [str(item).strip() for item in additional_context if str(item).strip()]
+    if not isinstance(additional_context, str) or not additional_context.strip():
+        return []
+    if "Safety Factors:" not in additional_context:
+        return []
+    factors_text = additional_context.split("Safety Factors:", 1)[1].strip()
+    return [item.strip(" -\t") for item in re.split(r'[,;\n]\s*', factors_text) if item.strip(" -\t")]
+
+def format_submitted_observation(description: str, checklist_items: List[str]) -> str:
+    """Return the real submitted observation, including structured selections."""
+    free_text = (description or "").strip()
+    if free_text == FREE_TEXT_FALLBACK:
+        free_text = ""
+    selected_text = "\n".join(f"- {item}" for item in checklist_items)
+    if free_text and checklist_items:
+        return f"{free_text}\n\nSelected Safety Factors:\n{selected_text}"
+    return free_text or selected_text or FREE_TEXT_FALLBACK
+
 def execute_ai_analysis(db: Session, report: SafetyReport) -> AIAnalysis:
     """
     Executes AI analysis for a safety report and persists explainable structured results.
@@ -21,17 +44,18 @@ def execute_ai_analysis(db: Session, report: SafetyReport) -> AIAnalysis:
     try:
         # Run 10-step AI pipeline on normalized description (falling back to original)
         desc_to_analyze = report.normalized_description or report.description or ""
-        checklist_items: List[str] = []
-        if report.additional_context:
-            ctx_val = report.additional_context if isinstance(report.additional_context, str) else ", ".join(str(x) for x in report.additional_context)
-            factors_text = ctx_val.replace("Safety Factors:", "").strip()
-            checklist_items = [f.strip() for f in re.split(r'[,;]\s*', factors_text) if f.strip()]
+        checklist_items = extract_checklist_items(report.additional_context)
+        if checklist_items:
+            submitted_observation = format_submitted_observation(report.description, checklist_items)
+            if submitted_observation != FREE_TEXT_FALLBACK:
+                report.description = submitted_observation
 
-        if (not desc_to_analyze or desc_to_analyze == "No free-text observation provided.") and checklist_items:
+        desc_to_analyze = report.description or ""
+        if (not desc_to_analyze or desc_to_analyze == FREE_TEXT_FALLBACK) and checklist_items:
             structured_factors = "\n".join(f"- {item}" for item in checklist_items)
             desc_to_analyze = (
                 "Safety Observation:\n"
-                "No free-text observation provided.\n\n"
+                f"{FREE_TEXT_FALLBACK}\n\n"
                 "Selected Safety Factors:\n"
                 f"{structured_factors}\n\n"
                 f"Classification:\n{report.report_type.replace('_', ' ').title()}\n\n"
@@ -130,10 +154,10 @@ def execute_direct_analysis(
             f"Operating Unit:\n{location}"
         )
         desc_to_analyze = structured_context
-        description_for_report = "No free-text observation provided."
+        description_for_report = format_submitted_observation(description, checklist_items)
     else:
         desc_to_analyze = description
-        description_for_report = description
+        description_for_report = format_submitted_observation(description, checklist_items)
 
     # 1. Run the real current main 10-step AI NLP engine
     raw_result = analyze_safety_report(
@@ -442,6 +466,7 @@ def execute_direct_analysis(
     return AIAnalysisExecuteResponse(
         report_id=report.id,
         report_reference=report.report_reference,
+        description=report.description,
         report_name=report_name,
         sif_precursor=sif_status if sif_status in ["YES", "NO", "INSUFFICIENT_INFORMATION"] else "NO",
         determination_status=determination_status,

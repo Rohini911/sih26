@@ -868,6 +868,10 @@ export default function AIAnalysisView() {
     const loc = unitToUse || location;
     const rType = typeToUse || reportType;
     const currentChecklist = checklistToUse !== undefined ? checklistToUse : selectedChecklist;
+    const submittedObservation = [
+      text,
+      ...(currentChecklist || []).map((factor) => `- ${factor}`)
+    ].filter(Boolean).join('\n');
 
     // ALLOW submission when description exists OR at least one checklist factor is selected.
     // Only reject when BOTH are empty.
@@ -1032,6 +1036,7 @@ export default function AIAnalysisView() {
           const finalResult = {
             report_name: backendResult.report_name || reportName,
             report_reference: backendResult.report_reference,
+            description: backendResult.description || submittedObservation,
             is_duplicate: Boolean(backendResult.is_duplicate),
             sif_precursor: sifVal,
             confidence: confidence,
@@ -1062,7 +1067,7 @@ export default function AIAnalysisView() {
             report_reference: backendResult.report_reference,
             report_name: finalResult.report_name,
             report_type: rType === 'NEAR_MISS' ? 'Near Miss' : rType === 'UNSAFE_ACT' ? 'Unsafe Act' : 'Unsafe Condition',
-            description: text,
+            description: backendResult.description || submittedObservation,
             location: loc,
             facility_unit: `${loc} Active Operations`,
             report_date: reportDate,
@@ -1107,7 +1112,7 @@ export default function AIAnalysisView() {
                   date_submitted: reportRecordToSync.report_date,
                   short_description: reportRecordToSync.description,
                   unit: reportRecordToSync.location,
-                  excerpt: text
+                  excerpt: backendResult.description || submittedObservation
                 }]
               });
             });
@@ -1205,7 +1210,7 @@ export default function AIAnalysisView() {
             unit: location || 'Operating Unit',
             date: new Date().toISOString().split('T')[0],
             role: 'Active Trigger Record',
-            excerpt: description
+            excerpt: analysisResult?.description || description || selectedChecklist.map((factor) => `- ${factor}`).join('\n')
           }
         ];
 
@@ -1217,7 +1222,7 @@ export default function AIAnalysisView() {
       severity: ws.risk_level || (ws.risk_score >= 80 ? 'Critical Risk' : 'High Risk'),
       isPresentInCurrent: true,
       identifyingRecords,
-      presentRecordObservation: description,
+      presentRecordObservation: analysisResult?.description || description || selectedChecklist.map((factor) => `- ${factor}`).join('\n'),
       precursorEscalation: ws.escalation_path || `Potential escalation path: ${ws.detected_hazard || 'uncontrolled release'} leading to increased severity.`,
       systemicMitigation: ws.recommended_action || (ws.barrier_issue ? `1. Restore and verify critical barrier: ${ws.barrier_issue}.\n2. Conduct targeted inspection of ${ws.unit || 'affected area'}.\n3. Issue safety alert for recurring pattern.` : '1. Conduct targeted area walkdown.\n2. Verify operational controls.\n3. Track barrier degradation.'),
       why_identified: ws.reason || ws.detection_reason || `Recurring pattern identified based on ${ws.recurrence_count || identifyingRecords.length} related observations.`

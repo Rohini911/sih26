@@ -26,7 +26,6 @@ import {
   X,
   Database,
   ArrowDown,
-  Plus,
   Edit3,
   Sliders,
   Shield,
@@ -80,6 +79,7 @@ export default function SIFPrecursorsView({ onNavigate }) {
   // Main data states
   const [loading, setLoading] = useState(true);
   const [precursors, setPrecursors] = useState([]);
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
   const [fetchError, setFetchError] = useState(null);
 
   // Filter & Search states
@@ -100,19 +100,6 @@ export default function SIFPrecursorsView({ onNavigate }) {
     reviewer_notes: ''
   });
 
-  // Add Precursor Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({
-    title: '',
-    category: 'Lifting Operations & Rigging',
-    unit: 'Unit 1',
-    isSIF: true,
-    risk_score: 88,
-    status: 'Under Review',
-    short_description: '',
-    engineering_mandate: ''
-  });
-
   // Detailed Analysis Dossier Modal
   const [selectedDossierReport, setSelectedDossierReport] = useState(null);
 
@@ -129,37 +116,27 @@ export default function SIFPrecursorsView({ onNavigate }) {
       setLoading(true);
       setFetchError(null);
       
+      const [backendPrecursors, backendMetrics] = await Promise.all([
+        api.getSIFPrecursors(),
+        api.getDashboardData()
+      ]);
+      setPrecursors(Array.isArray(backendPrecursors) ? backendPrecursors : []);
+      setDashboardMetrics(backendMetrics || null);
+    } catch (err) {
+      console.error('Error loading precursors:', err);
       const storeState = getStoreState();
       if (storeState.isWiped) {
         setPrecursors([]);
-        return;
-      }
-
-      if (storeState.precursors && storeState.precursors.length > 0) {
-        setPrecursors(storeState.precursors);
-        return;
-      }
-
-      // Check localStorage first for persisted admin edits
-      const localData = localStorage.getItem(ADMIN_PRECURSORS_STORAGE_KEY);
-      let loadedList = [];
-      if (localData) {
+      } else {
+        const localData = localStorage.getItem(ADMIN_PRECURSORS_STORAGE_KEY);
         try {
-          loadedList = JSON.parse(localData);
-        } catch (e) {
-          console.error('Error parsing local precursors:', e);
+          const loadedList = localData ? JSON.parse(localData) : storeState.precursors || [];
+          setPrecursors(Array.isArray(loadedList) ? loadedList : []);
+        } catch {
+          setPrecursors(storeState.precursors || []);
         }
       }
-
-      if (loadedList && loadedList.length > 0) {
-        setPrecursors(loadedList);
-      } else {
-        setPrecursors([]);
-      }
-    } catch (err) {
-      console.error('Error loading precursors:', err);
       setFetchError('Failed to load precursor intelligence records.');
-      setPrecursors([]);
     } finally {
       setLoading(false);
     }
@@ -313,60 +290,6 @@ export default function SIFPrecursorsView({ onNavigate }) {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Save New SIF Precursor
-  const handleCreateNewPrecursor = (e) => {
-    e.preventDefault();
-    if (!isAdmin) {
-      setToastMessage({
-        type: 'error',
-        text: 'Action Restricted: Only Administrators can create new SIF precursor records.'
-      });
-      setTimeout(() => setToastMessage(null), 4000);
-      return;
-    }
-    if (!addForm.title.trim()) return;
-
-    const nextId = precursors.length > 0 ? Math.max(...precursors.map(p => p.id || 0)) + 1 : 1;
-    const newPrecursor = {
-      id: nextId,
-      precursor_id: `PREC-${String(nextId).padStart(2, '0')}`,
-      title: addForm.title,
-      category: addForm.category,
-      unit: addForm.unit,
-      isSIF: Boolean(addForm.isSIF),
-      risk_score: Number(addForm.risk_score),
-      status: addForm.status,
-      short_description: addForm.short_description || addForm.title,
-      why_identified: 'Manually logged by Authorized Safety Administrator with neural energy vector tagging.',
-      detection_date: new Date().toISOString().split('T')[0],
-      engineering_mandate: addForm.engineering_mandate || 'Mandate immediate physical barrier controls and audit compliance.',
-      reviewer_notes: 'Created in Admin Intelligence Dashboard.',
-      reviewed_at: new Date().toISOString(),
-      related_weak_signals_count: 1,
-      related_reports_count: 1
-    };
-
-    const updated = [newPrecursor, ...precursors];
-    updatePrecursorsList(updated);
-    setShowAddModal(false);
-    setAddForm({
-      title: '',
-      category: 'Lifting Operations & Rigging',
-      unit: 'Unit 1',
-      isSIF: true,
-      risk_score: 88,
-      status: 'Under Review',
-      short_description: '',
-      engineering_mandate: ''
-    });
-
-    setToastMessage({
-      type: 'success',
-      text: `New SIF Precursor "${newPrecursor.precursor_id}" created successfully!`
-    });
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
   // Trigger confirmation modal for Reset Baseline
   const handleResetData = () => {
     if (!isAdmin) {
@@ -432,6 +355,9 @@ export default function SIFPrecursorsView({ onNavigate }) {
 
   // 4. Confirmed SIF Precursors count
   const sifCount = precursors.filter((p) => p.isSIF).length;
+  const totalSifPrecursors = dashboardMetrics?.total_sif_precursors ?? sifCount;
+  const awaitingHumanFeedback = dashboardMetrics?.sif_precursors_awaiting_review ?? wantsHumanFeedbackList.length;
+  const completedSifPrecursors = dashboardMetrics?.sif_precursors_completed ?? completedList.length;
 
   // Filtered List for Display
   const displayedPrecursors = precursors.filter((p) => {
@@ -509,17 +435,6 @@ export default function SIFPrecursorsView({ onNavigate }) {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] hover:from-[#ff5934] hover:to-[#e64a27] text-white font-bold text-xs shadow-md shadow-orange-500/20 cursor-pointer transition-all"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Add SIF Precursor</span>
-            </button>
-          )}
-
           {/* Reset Baseline - Administrator Only */}
           {isAdmin && (
             <button
@@ -565,7 +480,7 @@ export default function SIFPrecursorsView({ onNavigate }) {
           </div>
           <div className="mt-4">
             <div className="text-3xl font-black text-[#FF5A36] font-heading tracking-tight flex items-baseline gap-2">
-              <span>{wantsHumanFeedbackList.length}</span>
+              <span>{awaitingHumanFeedback}</span>
               <span className="text-xs font-semibold text-slate-400 font-sans">
                 findings awaiting sign-off
               </span>
@@ -595,7 +510,7 @@ export default function SIFPrecursorsView({ onNavigate }) {
           </div>
           <div className="mt-4">
             <div className="text-3xl font-black text-slate-900 font-heading tracking-tight">
-              {sifCount} <span className="text-xs font-mono font-medium text-slate-400">/ {precursors.length} Total</span>
+              {totalSifPrecursors} <span className="text-xs font-mono font-medium text-slate-400">/ {dashboardMetrics?.total_reports ?? precursors.length} Total</span>
             </div>
             <p className="text-[11px] text-slate-500 mt-1 leading-normal">
               High-potential fatality precursors flagged across operations
@@ -622,37 +537,10 @@ export default function SIFPrecursorsView({ onNavigate }) {
           </div>
           <div className="mt-4">
             <div className="text-3xl font-black text-emerald-600 font-heading tracking-tight">
-              {completedList.length}
+              {completedSifPrecursors}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 leading-normal">
               Verified & resolved with engineering controls deployed
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Weak Signals Active Scope (Pending & Incomplete Only) */}
-        <div 
-          onClick={() => setScopeFilter('ACTIVE_WEAK_SIGNALS')}
-          className={`p-5 rounded-2xl border transition-all cursor-pointer shadow-xs flex flex-col justify-between ${
-            scopeFilter === 'ACTIVE_WEAK_SIGNALS'
-              ? 'bg-gradient-to-br from-amber-50/60 to-white border-amber-500 ring-2 ring-amber-400/20'
-              : 'bg-white border-[#EAE6E1] hover:border-amber-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-              Weak Signals Scope
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="text-3xl font-black text-indigo-600 font-heading tracking-tight">
-              {activeWeakSignalsScopeList.length}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1 leading-normal">
-              Active weak signals considering only pending &amp; incomplete
             </p>
           </div>
         </div>
@@ -1194,188 +1082,6 @@ export default function SIFPrecursorsView({ onNavigate }) {
                   className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] text-white hover:from-[#ff5934] hover:to-[#e64a27] shadow-md shadow-orange-500/20 cursor-pointer"
                 >
                   Save Record Changes
-                </button>
-              </div>
-
-            </form>
-
-          </div>
-        </div>
-      )}
-
-      {/* ================= ADD SIF PRECURSOR MODAL (ADMIN ONLY) ================= */}
-      {isAdmin && showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200 select-none">
-          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#EAE6E1] overflow-hidden flex flex-col max-h-[92vh] text-left text-slate-800 animate-in zoom-in-95 duration-200">
-            
-            {/* Modal Header */}
-            <div className="p-6 bg-[#FAF8F5] border-b border-[#EAE6E1] flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-[#FFF1EE] text-[#FF5A36] border border-[#FFE0D6]">
-                    NEW PRECURSOR
-                  </span>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Safety Authority Entry
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold font-heading text-slate-900 tracking-tight mt-1">
-                  Add New SIF Precursor Pattern
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 border border-[#EAE6E1] transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleCreateNewPrecursor} className="p-6 overflow-y-auto space-y-5 text-xs">
-              
-              {/* Title Input */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800 block uppercase tracking-wider text-[11px]">
-                  Precursor / Hazard Headline Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Unsecured Compressed Gas Manifold & High-Pressure Leaks"
-                  value={addForm.title}
-                  onChange={(e) => setAddForm({ ...addForm, title: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-stone-300 text-slate-900 font-semibold focus:outline-none focus:border-[#FF5A36] text-xs bg-[#FAF8F5] focus:bg-white transition-all"
-                />
-              </div>
-
-              {/* SIF Toggle */}
-              <div className="space-y-1.5 p-4 rounded-xl border border-stone-200 bg-[#FAF8F5]">
-                <label className="font-bold text-slate-800 block uppercase tracking-wider text-[11px]">
-                  SIF Assessment
-                </label>
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAddForm({ ...addForm, isSIF: true })}
-                    className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      addForm.isSIF
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-stone-200 hover:bg-stone-50'
-                    }`}
-                  >
-                    <ShieldAlert className="w-4 h-4" />
-                    <span>SIF Precursor</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAddForm({ ...addForm, isSIF: false })}
-                    className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      !addForm.isSIF
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-stone-200 hover:bg-stone-50'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Non-SIF Routine Observation</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Category & Operating Unit */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 block uppercase tracking-wider text-[10.5px]">
-                    Category
-                  </label>
-                  <select
-                    value={addForm.category}
-                    onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-300 text-xs text-slate-800 bg-white"
-                  >
-                    <option value="Lifting Operations & Rigging">Lifting Operations &amp; Rigging</option>
-                    <option value="Hazardous Energy & LOTO">Hazardous Energy &amp; LOTO</option>
-                    <option value="Confined Space Entry">Confined Space Entry</option>
-                    <option value="Work at Height">Work at Height</option>
-                    <option value="Pressure & Hazardous Energy">Pressure &amp; Hazardous Energy</option>
-                    <option value="Hot Work & Fire Safety">Hot Work &amp; Fire Safety</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 block uppercase tracking-wider text-[10.5px]">
-                    Target Unit
-                  </label>
-                  <select
-                    value={addForm.unit}
-                    onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-300 text-xs text-slate-800 bg-white"
-                  >
-                    <option value="Unit 1">Unit 1 (Process Refining)</option>
-                    <option value="Unit 2">Unit 2 (Compressor Station)</option>
-                    <option value="Unit 3">Unit 3 (LPG Storage Farm)</option>
-                    <option value="Unit 4">Unit 4 (Offsite Pipeline)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Initial Status */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800 block uppercase tracking-wider text-[11px]">
-                  Initial Review Status
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Under Review', 'Incomplete', 'Complete'].map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setAddForm({ ...addForm, status })}
-                      className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer text-center border ${
-                        addForm.status === status
-                          ? status === 'Complete' ? 'bg-emerald-600 text-white border-emerald-600'
-                            : status === 'Incomplete' ? 'bg-rose-600 text-white border-rose-600'
-                            : 'bg-amber-600 text-white border-amber-600'
-                          : 'bg-white text-slate-700 border-stone-200 hover:bg-stone-50'
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Prescribed Controls */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-800 block uppercase tracking-wider text-[11px]">
-                  Prescribed Controls &amp; Barrier Directives
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Prescribed barrier control directive e.g. Immediate physical exclusion barriers and dual-rigger radio signaling required..."
-                  value={addForm.engineering_mandate}
-                  onChange={(e) => setAddForm({ ...addForm, engineering_mandate: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-stone-300 text-xs text-slate-800 leading-relaxed bg-[#FAF8F5] focus:bg-white focus:outline-none focus:border-[#FF5A36]"
-                />
-              </div>
-
-              {/* Form Footer Actions */}
-              <div className="pt-4 border-t border-stone-200 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-stone-300 text-slate-700 hover:bg-stone-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#FF6B4A] to-[#FF5A36] text-white hover:from-[#ff5934] hover:to-[#e64a27] shadow-md shadow-orange-500/20 cursor-pointer"
-                >
-                  Create SIF Precursor
                 </button>
               </div>
 
